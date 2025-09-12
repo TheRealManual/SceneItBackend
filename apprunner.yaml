@@ -1,17 +1,12 @@
-# AWS App Runner configuration for SceneIt Backend
+# apprunner.yaml  (must be at repository root, exact name)
 version: 1.0
-runtime: nodejs18
+runtime: nodejs18   # <- this exact lowercase token; not "nodejs20", not "NODEJS_18"
+
 build:
   commands:
-    build:
-      - echo "Installing dependencies..."
-      - npm ci
+    - npm ci
+
 run:
-  runtime-version: 18
   command: npm start
   network:
-    port: 5000
-    env: PORT
-  env:
-    - name: NODE_ENV
-      value: production
+    port: 3000

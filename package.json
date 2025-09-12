@@ -1,23 +1,10 @@
 {
   "name": "sceneit-backend",
-  "version": "1.0.0",
-  "description": "Backend API for SceneIt movie recommendation app",
-  "main": "server.js",
-  "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": ["movie", "recommendation", "api", "node", "express"],
-  "author": "",
-  "license": "ISC",
+  "private": true,
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "express": "^4.19.2"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  }
+  "engines": { "node": ">=18 <19" }
 }
