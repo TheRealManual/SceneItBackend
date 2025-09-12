@@ -11,12 +11,19 @@ app.get('/', (_req, res) => res.json({
   status: 'running',
   endpoints: {
     health: '/health',
-    ping: '/api/ping'
+    ping: '/api/ping',
+    status: '/api/status'
   }
 }));
 
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 app.get('/api/ping', (_req, res) => res.json({ ok: true }));
+app.get('/api/status', (_req, res) => res.json({ 
+  status: 'success',
+  message: 'Backend is connected and running!',
+  timestamp: new Date().toISOString(),
+  environment: process.env.NODE_ENV || 'production'
+}));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`API listening on ${PORT}`));
