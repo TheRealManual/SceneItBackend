@@ -6,6 +6,15 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+app.get('/', (_req, res) => res.json({ 
+  message: 'SceneIt Backend API', 
+  status: 'running',
+  endpoints: {
+    health: '/health',
+    ping: '/api/ping'
+  }
+}));
+
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 app.get('/api/ping', (_req, res) => res.json({ ok: true }));
 
