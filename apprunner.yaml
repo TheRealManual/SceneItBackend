@@ -3,13 +3,10 @@ runtime: nodejs18
 
 build:
   commands:
-    - npm ci
+    build:
+      - npm ci
 
 run:
   command: npm start
   network:
     port: 3000
-
-env:
-  variables:
-    PORT: 3000
