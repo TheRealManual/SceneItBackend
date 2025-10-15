@@ -1,10 +1,24 @@
-// server.js (CommonJS on Node 18)
+require('dotenv').config();
+const session = require('express-session');
+const passport = require('./middleware/google.strategy');
 const express = require('express');
 const cors = require('cors');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: false,
+  saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.use('/auth', authRoutes);
 
 app.get('/', (_req, res) => res.json({ 
   message: 'SceneIt Backend API', 
