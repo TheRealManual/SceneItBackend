@@ -4,6 +4,10 @@ const ensureAuthenticated = (req, res, next) => {
 };
 
 const loginSuccess = (req, res) => {
+  console.log('Login successful for user:', req.user?.displayName);
+  console.log('Session ID:', req.sessionID);
+  console.log('Session:', req.session);
+  
   // Redirect to frontend after successful login
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   res.redirect(frontendUrl);
@@ -16,6 +20,9 @@ const loginFailure = (_req, res) => {
 };
 
 const me = (req, res) => {
+  console.log('GET /auth/me - Session ID:', req.sessionID);
+  console.log('GET /auth/me - Authenticated:', req.isAuthenticated?.());
+  console.log('GET /auth/me - User:', req.user);
   res.json({ user: req.user || null });
 };
 
