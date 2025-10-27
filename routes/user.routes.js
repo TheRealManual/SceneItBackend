@@ -4,9 +4,11 @@ const userController = require('../controllers/user.controller');
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req, res, next) => {
+  console.log(`${req.method} ${req.path} - isAuthenticated check - Auth: ${req.isAuthenticated()}`);
   if (req.isAuthenticated()) {
     return next();
   }
+  console.log('Authentication failed - returning 401');
   res.status(401).json({ error: 'Not authenticated' });
 };
 

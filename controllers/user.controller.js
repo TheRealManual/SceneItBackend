@@ -48,6 +48,8 @@ exports.updatePreferences = async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
+    console.log('PUT /api/user/preferences - Request body:', JSON.stringify(req.body, null, 2));
+
     const { 
       description,
       yearRange, 

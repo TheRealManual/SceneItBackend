@@ -69,6 +69,17 @@ app.get('/api/status', (_req, res) => res.json({
   environment: process.env.NODE_ENV || 'production'
 }));
 
+// Error handling middleware - must be AFTER all routes
+app.use((err, req, res, next) => {
+  console.error('Error middleware caught:', err);
+  console.error('Request path:', req.path);
+  console.error('Request method:', req.method);
+  res.status(err.status || 500).json({ 
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
 const PORT = process.env.PORT || 3000;
 
 // Log startup info
