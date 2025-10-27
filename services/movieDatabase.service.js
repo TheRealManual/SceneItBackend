@@ -16,10 +16,10 @@ class MovieDatabaseService {
         headers: this.headers,
         params: {
           page: page,
-          language: 'en-US',
           sort_by: 'popularity.desc',
           include_adult: false,
           include_video: false
+          // No language filter - get all languages
         }
       });
       return response.data;
@@ -29,16 +29,28 @@ class MovieDatabaseService {
     }
   }
 
-  async fetchMovieDetails(movieId) {
+  async fetchMovieDetails(movieId, retryWithoutLanguage = false) {
     try {
+      const params = {
+        append_to_response: 'credits,keywords,release_dates'
+      };
+      
+      // Only add language parameter if not retrying
+      if (!retryWithoutLanguage) {
+        params.language = 'en-US';
+      }
+      
       const response = await axios.get(`${this.baseUrl}/movie/${movieId}`, {
         headers: this.headers,
-        params: {
-          append_to_response: 'credits,keywords,release_dates'
-        }
+        params: params
       });
       return response.data;
     } catch (error) {
+      // If language override error, retry without language parameter
+      if (error.response?.data?.status_message?.includes('language override') && !retryWithoutLanguage) {
+        console.log(`   ⚠️  Language override error, retrying without language filter...`);
+        return this.fetchMovieDetails(movieId, true);
+      }
       console.error(`Error fetching movie ${movieId}:`, error.message);
       throw error;
     }
@@ -51,8 +63,8 @@ class MovieDatabaseService {
         params: {
           query: query,
           page: page,
-          language: 'en-US',
           include_adult: false
+          // No language filter - search all languages
         }
       });
       return response.data;

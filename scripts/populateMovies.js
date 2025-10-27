@@ -104,7 +104,7 @@ async function populateMovies() {
             }
 
             // Fetch detailed information
-            console.log(`📥 [${totalProcessed}] Fetching details: ${movie.title} (${movie.release_date?.substring(0, 4) || 'N/A'})`);
+            console.log(`📥 [${totalProcessed}] Fetching details: ${movie.title} (${movie.release_date?.substring(0, 4) || 'N/A'}) [${movie.original_language?.toUpperCase()}]`);
             const details = await movieService.fetchMovieDetails(movie.id);
             await sleep(DELAY_MS); // Rate limiting
 
@@ -114,7 +114,7 @@ async function populateMovies() {
             
             successCount++;
             console.log(`✅ [${totalProcessed}] Saved: ${movie.title}`);
-            console.log(`   ⭐ Rating: ${movieData.voteAverage}/10 | 🎭 Genres: ${movieData.genres.map(g => g.name).join(', ')}`);
+            console.log(`   ⭐ Rating: ${movieData.voteAverage}/10 | 🎭 Genres: ${movieData.genres.map(g => g.name).join(', ')} | 🌍 Language: ${movieData.language}`);
 
           } catch (error) {
             errorCount++;
