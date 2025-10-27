@@ -13,31 +13,13 @@ connectDB();
 const app = express();
 app.use(express.json());
 
-// Configure CORS to allow credentials
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://main.d1ur5bc2o4pggx.amplifyapp.com'
-];
-
+// Configure CORS to allow credentials - SIMPLIFIED
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('CORS allowed origin:', origin);
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(null, false);
-    }
-  },
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://main.d1ur5bc2o4pggx.amplifyapp.com'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
