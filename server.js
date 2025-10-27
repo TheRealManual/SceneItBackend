@@ -15,8 +15,8 @@ app.use(express.json());
 
 // Configure CORS to allow credentials
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
+  'http://localhost:3000',
   'https://main.d1ur5bc2o4pggx.amplifyapp.com'
 ];
 
@@ -26,6 +26,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log('CORS allowed origin:', origin);
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
@@ -34,7 +35,9 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions));
 
