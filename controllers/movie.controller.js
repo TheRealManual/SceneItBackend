@@ -56,6 +56,37 @@ const movieController = {
         message: error.message
       });
     }
+  },
+
+  // Get random movies for carousel
+  async getRandomMovies(req, res) {
+    try {
+      const count = parseInt(req.query.count) || 20;
+      const Movie = require('../models/Movie');
+      
+      console.log(`🎲 Fetching ${count} random movies for carousel`);
+      
+      // Use MongoDB aggregation to get random movies
+      const movies = await Movie.aggregate([
+        { $sample: { size: count } }
+      ]);
+      
+      console.log(`✅ Found ${movies.length} random movies`);
+      
+      res.json({
+        success: true,
+        count: movies.length,
+        movies: movies
+      });
+      
+    } catch (error) {
+      console.error('Get random movies error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get random movies',
+        message: error.message
+      });
+    }
   }
 };
 

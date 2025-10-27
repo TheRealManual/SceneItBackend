@@ -13,6 +13,9 @@ const isAuthenticated = (req, res, next) => {
 // Search movies (authenticated users only)
 router.post('/search', isAuthenticated, movieController.searchMovies);
 
+// Get random movies for carousel (no auth required)
+router.get('/random', movieController.getRandomMovies);
+
 // Get movie by ID
 router.get('/:id', movieController.getMovieById);
 
