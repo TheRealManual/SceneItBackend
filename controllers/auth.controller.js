@@ -4,11 +4,15 @@ const ensureAuthenticated = (req, res, next) => {
 };
 
 const loginSuccess = (req, res) => {
-  res.json({ status: 'ok', user: req.user });
+  // Redirect to frontend after successful login
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(frontendUrl);
 };
 
 const loginFailure = (_req, res) => {
-  res.status(401).json({ status: 'error', message: 'Google authentication failed' });
+  // Redirect to frontend with error
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  res.redirect(`${frontendUrl}?error=auth_failed`);
 };
 
 const me = (req, res) => {
