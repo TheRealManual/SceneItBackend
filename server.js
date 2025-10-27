@@ -6,6 +6,7 @@ const cors = require('cors');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const movieRoutes = require('./routes/movie.routes');
 
 // Connect to MongoDB
 connectDB();
@@ -49,6 +50,7 @@ app.use(passport.session());
 
 app.use('/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/movies', movieRoutes);
 
 app.get('/', (_req, res) => res.json({ 
   message: 'SceneIt Backend API', 
