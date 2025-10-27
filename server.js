@@ -23,7 +23,8 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log('CORS blocked origin:', origin);
+      callback(null, false);
     }
   },
   credentials: true,
@@ -69,4 +70,15 @@ app.get('/api/status', (_req, res) => res.json({
 }));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API listening on ${PORT}`));
+
+// Log startup info
+console.log('Starting SceneIt Backend...');
+console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('Port:', PORT);
+console.log('Frontend URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
+console.log('Google OAuth configured:', !!process.env.AUTH_GOOGLE_ID);
+
+app.listen(PORT, () => {
+  console.log(`API listening on ${PORT}`);
+  console.log('Server is ready!');
+});
