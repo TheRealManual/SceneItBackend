@@ -2,9 +2,11 @@
   "name": "sceneit-backend",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "populate:movies": "node scripts/populateMovies.js"
   },
   "dependencies": {
+    "axios": "^1.7.9",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
