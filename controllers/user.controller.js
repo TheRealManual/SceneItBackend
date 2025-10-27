@@ -17,7 +17,20 @@ exports.getProfile = async (req, res) => {
       displayName: user.displayName,
       email: user.email,
       photo: user.photo,
-      preferences: user.preferences,
+      preferences: {
+        description: user.preferences.description,
+        yearRange: user.preferences.yearRange,
+        runtimeRange: user.preferences.runtimeRange,
+        ratingRange: user.preferences.ratingRange,
+        ageRating: user.preferences.ageRating,
+        moodIntensity: user.preferences.moodIntensity,
+        humorLevel: user.preferences.humorLevel,
+        violenceLevel: user.preferences.violenceLevel,
+        romanceLevel: user.preferences.romanceLevel,
+        complexityLevel: user.preferences.complexityLevel,
+        genres: Object.fromEntries(user.preferences.genres || new Map()),
+        language: user.preferences.language
+      },
       likedMoviesCount: user.likedMovies.length,
       dislikedMoviesCount: user.dislikedMovies.length,
       lastActive: user.lastActive
@@ -35,23 +48,64 @@ exports.updatePreferences = async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { yearRange, ratingRange, genres } = req.body;
+    const { 
+      description,
+      yearRange, 
+      runtimeRange,
+      ratingRange, 
+      ageRating,
+      moodIntensity,
+      humorLevel,
+      violenceLevel,
+      romanceLevel,
+      complexityLevel,
+      genres,
+      language
+    } = req.body;
     
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Update preferences
+    // Update all preferences if provided
+    if (description !== undefined) user.preferences.description = description;
     if (yearRange) user.preferences.yearRange = yearRange;
+    if (runtimeRange) user.preferences.runtimeRange = runtimeRange;
     if (ratingRange) user.preferences.ratingRange = ratingRange;
-    if (genres !== undefined) user.preferences.genres = genres;
+    if (ageRating !== undefined) user.preferences.ageRating = ageRating;
+    if (moodIntensity !== undefined) user.preferences.moodIntensity = moodIntensity;
+    if (humorLevel !== undefined) user.preferences.humorLevel = humorLevel;
+    if (violenceLevel !== undefined) user.preferences.violenceLevel = violenceLevel;
+    if (romanceLevel !== undefined) user.preferences.romanceLevel = romanceLevel;
+    if (complexityLevel !== undefined) user.preferences.complexityLevel = complexityLevel;
+    if (language !== undefined) user.preferences.language = language;
+    
+    // Handle genres as a Map
+    if (genres !== undefined) {
+      if (typeof genres === 'object') {
+        user.preferences.genres = new Map(Object.entries(genres));
+      }
+    }
 
     await user.save();
 
     res.json({
       message: 'Preferences updated successfully',
-      preferences: user.preferences
+      preferences: {
+        description: user.preferences.description,
+        yearRange: user.preferences.yearRange,
+        runtimeRange: user.preferences.runtimeRange,
+        ratingRange: user.preferences.ratingRange,
+        ageRating: user.preferences.ageRating,
+        moodIntensity: user.preferences.moodIntensity,
+        humorLevel: user.preferences.humorLevel,
+        violenceLevel: user.preferences.violenceLevel,
+        romanceLevel: user.preferences.romanceLevel,
+        complexityLevel: user.preferences.complexityLevel,
+        genres: Object.fromEntries(user.preferences.genres),
+        language: user.preferences.language
+      }
     });
   } catch (error) {
     console.error('Error updating preferences:', error);

@@ -19,17 +19,64 @@ const userSchema = new mongoose.Schema({
     type: String
   },
   preferences: {
+    description: {
+      type: String,
+      default: ''
+    },
     yearRange: {
       type: [Number],
-      default: [1980, 2024]
+      default: [1950, 2025]
+    },
+    runtimeRange: {
+      type: [Number],
+      default: [60, 180]
     },
     ratingRange: {
       type: [Number],
-      default: [0, 10]
+      default: [1, 10]
+    },
+    ageRating: {
+      type: String,
+      default: 'Any'
+    },
+    moodIntensity: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 10
+    },
+    humorLevel: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 10
+    },
+    violenceLevel: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 10
+    },
+    romanceLevel: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 10
+    },
+    complexityLevel: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 10
     },
     genres: {
-      type: [String],
-      default: []
+      type: Map,
+      of: Number,
+      default: new Map()
+    },
+    language: {
+      type: String,
+      default: 'English'
     }
   },
   likedMovies: [{
