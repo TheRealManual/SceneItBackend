@@ -11,7 +11,6 @@ const userRoutes = require('./routes/user.routes');
 connectDB();
 
 const app = express();
-app.use(express.json());
 
 // Configure CORS to allow credentials - SIMPLIFIED
 const corsOptions = {
@@ -21,7 +20,14 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 200
 };
+
+// Apply CORS before other middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+app.use(express.json());
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret_key',
