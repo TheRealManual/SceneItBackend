@@ -86,6 +86,7 @@ console.log('Environment:', process.env.NODE_ENV || 'development');
 console.log('Port:', PORT);
 console.log('Frontend URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
 console.log('Google OAuth configured:', !!process.env.AUTH_GOOGLE_ID);
+console.log('MongoDB URI configured:', !!process.env.MONGODB_URI);
 
 app.listen(PORT, () => {
   console.log(`API listening on ${PORT}`);
