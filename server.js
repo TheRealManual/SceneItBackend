@@ -3,7 +3,12 @@ const session = require('express-session');
 const passport = require('./middleware/google.strategy');
 const express = require('express');
 const cors = require('cors');
+const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 app.use(express.json());
@@ -52,6 +57,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use('/auth', authRoutes);
+app.use('/api/user', userRoutes);
 
 app.get('/', (_req, res) => res.json({ 
   message: 'SceneIt Backend API', 

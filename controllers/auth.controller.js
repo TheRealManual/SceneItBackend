@@ -23,7 +23,20 @@ const me = (req, res) => {
   console.log('GET /auth/me - Session ID:', req.sessionID);
   console.log('GET /auth/me - Authenticated:', req.isAuthenticated?.());
   console.log('GET /auth/me - User:', req.user);
-  res.json({ user: req.user || null });
+  
+  if (!req.user) {
+    return res.json({ user: null });
+  }
+  
+  // Return user data in the format expected by frontend
+  res.json({ 
+    user: {
+      id: req.user.googleId,
+      displayName: req.user.displayName,
+      email: req.user.email,
+      photo: req.user.photo
+    }
+  });
 };
 
 const logout = (req, res, next) => {

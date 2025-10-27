@@ -1,15 +1,30 @@
 const express = require('express');
-const passport = require('passport');
-const app = express();
+const router = express.Router();
+const userController = require('../controllers/user.controller');
 
-app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    // Successful authentication, redirect home.
-    res.redirect('/');
+// Middleware to check if user is authenticated
+const isAuthenticated = (req, res, next) => {
+  if (req.isAuthenticated()) {
+    return next();
   }
-);
+  res.status(401).json({ error: 'Not authenticated' });
+};
+
+// Get user profile
+router.get('/profile', isAuthenticated, userController.getProfile);
+
+// Update user preferences
+router.put('/preferences', isAuthenticated, userController.updatePreferences);
+
+// Like/dislike movies
+router.post('/movies/like', isAuthenticated, userController.likeMovie);
+router.post('/movies/dislike', isAuthenticated, userController.dislikeMovie);
+
+// Get liked/disliked movies
+router.get('/movies/liked', isAuthenticated, userController.getLikedMovies);
+router.get('/movies/disliked', isAuthenticated, userController.getDislikedMovies);
+
+// Remove movie from liked list
+router.delete('/movies/liked/:movieId', isAuthenticated, userController.removeLikedMovie);
+
+module.exports = router;
