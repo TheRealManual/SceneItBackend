@@ -1,10 +1,20 @@
 {
   "name": "sceneit-backend",
   "private": true,
-  "scripts": { "start": "node server.js" },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
+  "scripts": {
+    "start": "node server.js"
   },
-  "engines": { "node": ">=18 <19" }
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-session": "^1.18.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-oauth2": "^1.8.0"
+  },
+  "engines": {
+    "node": ">=18 <19"
+  }
 }
