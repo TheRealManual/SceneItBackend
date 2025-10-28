@@ -71,18 +71,36 @@ class MovieSearchService {
 
     console.log('📊 Database query:', JSON.stringify(query, null, 2));
 
+    // Determine how many movies to fetch based on whether we're using AI
+    const hasSubjectivePrefs = 
+      (preferences.description && preferences.description.trim().length > 0) ||
+      preferences.moodIntensity !== 5 ||
+      preferences.humorLevel !== 5 ||
+      preferences.violenceLevel !== 5 ||
+      preferences.romanceLevel !== 5 ||
+      preferences.complexityLevel !== 5;
+
+    // If using AI, fetch fewer movies to reduce tokens (50-75 movies is enough for good variety)
+    // If no AI, fetch more for better selection
+    const fetchLimit = hasSubjectivePrefs ? 200 : 300;
+    const aiLimit = hasSubjectivePrefs ? 60 : 100;
+
+    console.log(`🎯 Strategy: ${hasSubjectivePrefs ? 'Using AI analysis' : 'No AI (default sort)'}`);
+    console.log(`📊 Fetching ${fetchLimit} movies, ${hasSubjectivePrefs ? `analyzing ${aiLimit} with AI` : 'sorting by popularity'}`);
+
     // Fetch filtered movies with some randomization to avoid always getting the same results
-    // We fetch more than we need and shuffle them for variety
     const allMovies = await Movie.find(query)
       .sort({ popularity: -1, voteAverage: -1 }) // Sort by popularity and rating
-      .limit(300) // Fetch more movies
+      .limit(fetchLimit)
       .lean();
 
     // Shuffle the array to add randomization while keeping quality movies
     const shuffled = allMovies.sort(() => Math.random() - 0.5);
     
-    // Take the first 100 for AI processing
-    const movies = shuffled.slice(0, 100);
+    // Take only what we need for AI processing (fewer = less tokens)
+    const movies = shuffled.slice(0, aiLimit);
+
+    console.log(`✅ Returning ${movies.length} movies for ${hasSubjectivePrefs ? 'AI analysis' : 'direct use'}`);
 
     return movies;
   }
@@ -160,64 +178,67 @@ class MovieSearchService {
   }
 
   /**
-   * Build AI prompt for movie analysis
+   * Build AI prompt for movie analysis (optimized for token efficiency)
    */
   buildAIPrompt(movies, preferences) {
+    // Only send essential data for subjective analysis - minimize tokens
     const movieSummaries = movies.map(m => ({
       id: m.tmdbId,
       title: m.title,
       year: m.releaseDate ? new Date(m.releaseDate).getFullYear() : 'N/A',
-      overview: m.overview || 'No description available',
+      // Truncate overview to first 200 chars to save tokens (enough for AI to understand)
+      overview: (m.overview || 'No description').substring(0, 200),
       genres: m.genres?.map(g => g.name).join(', ') || 'Unknown',
-      keywords: m.keywords?.slice(0, 10).join(', ') || 'None',
-      rating: m.voteAverage || 0,
-      director: m.director || 'Unknown'
+      // Limit keywords to top 6 most relevant
+      keywords: m.keywords?.slice(0, 6).join(', ') || 'None',
+      rating: m.voteAverage || 0
     }));
 
-    return `You are an expert movie recommendation AI. Analyze these ${movies.length} movies and rank them based on how well they match the user's detailed preferences.
+    // Build a concise prompt focusing only on subjective criteria
+    const subjectivePrefs = [];
+    
+    if (preferences.description && preferences.description.trim()) {
+      subjectivePrefs.push(`User wants: "${preferences.description}"`);
+    }
+    
+    // Only include preferences that deviate from neutral (5)
+    if (preferences.moodIntensity !== 5) {
+      const mood = preferences.moodIntensity > 5 ? 'intense/dramatic' : 'calm/peaceful';
+      subjectivePrefs.push(`Mood: ${mood} (${preferences.moodIntensity}/10)`);
+    }
+    
+    if (preferences.humorLevel !== 5) {
+      const humor = preferences.humorLevel > 5 ? 'comedic/funny' : 'serious/dramatic';
+      subjectivePrefs.push(`Humor: ${humor} (${preferences.humorLevel}/10)`);
+    }
+    
+    if (preferences.violenceLevel !== 5) {
+      const violence = preferences.violenceLevel > 5 ? 'action-heavy' : 'minimal violence';
+      subjectivePrefs.push(`Violence: ${violence} (${preferences.violenceLevel}/10)`);
+    }
+    
+    if (preferences.romanceLevel !== 5) {
+      const romance = preferences.romanceLevel > 5 ? 'romantic focus' : 'minimal romance';
+      subjectivePrefs.push(`Romance: ${romance} (${preferences.romanceLevel}/10)`);
+    }
+    
+    if (preferences.complexityLevel !== 5) {
+      const complexity = preferences.complexityLevel > 5 ? 'complex/layered' : 'simple/straightforward';
+      subjectivePrefs.push(`Plot: ${complexity} (${preferences.complexityLevel}/10)`);
+    }
 
-**User Preferences:**
-${preferences.description ? `- **Description**: "${preferences.description}"` : ''}
-- **Mood Intensity**: ${preferences.moodIntensity}/10 (1=calm/peaceful, 10=intense/dramatic)
-- **Humor Level**: ${preferences.humorLevel}/10 (1=very serious, 10=hilarious/comedic)
-- **Violence Level**: ${preferences.violenceLevel}/10 (1=no violence, 10=graphic/action-heavy)
-- **Romance Level**: ${preferences.romanceLevel}/10 (1=no romance, 10=heavy romantic focus)
-- **Complexity Level**: ${preferences.complexityLevel}/10 (1=simple/straightforward, 10=complex/layered plot)
+    // Build concise prompt
+    return `Rank these ${movies.length} movies by match score (0.0-1.0). 
 
-**Genre Preferences** (1-10 scale):
-${Object.entries(preferences.genres || {}).map(([genre, rating]) => `- ${genre}: ${rating}/10`).join('\n')}
+User wants: ${subjectivePrefs.length > 0 ? subjectivePrefs.join('; ') : 'General recommendations'}
 
-**Movies to Analyze:**
+Movies (already filtered by year, rating, runtime, language):
 ${JSON.stringify(movieSummaries, null, 2)}
 
-**Task:**
-1. Analyze each movie's overview, genres, keywords, and director style
-2. Match against the user's subjective preferences (mood, humor, violence, romance, complexity)
-3. Consider the user's description to understand their intent
-4. Assign a score from 0.0 to 1.0 based on how well the movie matches ALL preferences
-5. Provide a brief reason explaining why the movie is a good/poor match
+Return JSON only (no markdown):
+[{"tmdbId": 123, "score": 0.95, "reason": "Brief explanation"}]
 
-**Output Format (JSON only, no markdown):**
-[
-  {
-    "tmdbId": 12345,
-    "score": 0.95,
-    "reason": "Perfect match: high intensity action with complex plot and minimal romance"
-  },
-  {
-    "tmdbId": 67890,
-    "score": 0.87,
-    "reason": "Strong match: romantic comedy with light mood and simple storyline"
-  }
-]
-
-**Rules:**
-- Only include movies with score >= 0.4
-- Sort by score (highest first)
-- Be honest - don't inflate scores
-- Consider ALL preference dimensions
-- Limit to top 30 movies maximum
-- Return ONLY valid JSON, no explanations`;
+Rules: score >= 0.4, top 30 max, sort by score desc.`;
   }
 
   /**
