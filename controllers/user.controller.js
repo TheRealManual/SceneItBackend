@@ -128,6 +128,12 @@ exports.likeMovie = async (req, res) => {
       return res.status(400).json({ error: 'movieId is required' });
     }
 
+    // Validate movieId is a valid number
+    const parsedId = parseInt(movieId);
+    if (isNaN(parsedId) || !isFinite(parsedId) || movieId === 'NaN') {
+      return res.status(400).json({ error: 'Invalid movieId: must be a valid number' });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -172,6 +178,12 @@ exports.dislikeMovie = async (req, res) => {
     
     if (!movieId) {
       return res.status(400).json({ error: 'movieId is required' });
+    }
+
+    // Validate movieId is a valid number
+    const parsedId = parseInt(movieId);
+    if (isNaN(parsedId) || !isFinite(parsedId) || movieId === 'NaN') {
+      return res.status(400).json({ error: 'Invalid movieId: must be a valid number' });
     }
 
     const user = await User.findById(req.user._id);
@@ -221,11 +233,18 @@ exports.getLikedMovies = async (req, res) => {
 
     // Fetch full movie details from Movie collection
     const Movie = require('../models/Movie');
-    const movieIds = user.likedMovies.map(m => parseInt(m.movieId));
-    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    // Filter out NaN movieIds and convert to integers
+    const validMovieIds = user.likedMovies
+      .map(m => parseInt(m.movieId))
+      .filter(id => !isNaN(id) && isFinite(id));
+    
+    const moviesWithDetails = validMovieIds.length > 0
+      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
+      : [];
     
     console.log('=== GET LIKED MOVIES DEBUG ===');
-    console.log('Number of liked movies:', movieIds.length);
+    console.log('Number of liked movies:', user.likedMovies.length);
     console.log('Number of movies fetched from DB:', moviesWithDetails.length);
     if (moviesWithDetails.length > 0) {
       const firstMovie = moviesWithDetails[0];
@@ -245,9 +264,14 @@ exports.getLikedMovies = async (req, res) => {
     // Create a map for quick lookup
     const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details
-    const likedMoviesWithDetails = user.likedMovies.map(userMovie => {
-      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+    // Combine user data with full movie details, filtering out NaN IDs
+    const likedMoviesWithDetails = user.likedMovies
+      .filter(userMovie => {
+        const id = parseInt(userMovie.movieId);
+        return !isNaN(id) && isFinite(id);
+      })
+      .map(userMovie => {
+        const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
       if (movieDetails) {
         return {
           tmdbId: movieDetails.tmdbId,
@@ -298,15 +322,27 @@ exports.getDislikedMovies = async (req, res) => {
 
     // Fetch full movie details from Movie collection
     const Movie = require('../models/Movie');
-    const movieIds = user.dislikedMovies.map(m => parseInt(m.movieId));
-    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    // Filter out NaN movieIds and convert to integers
+    const validMovieIds = user.dislikedMovies
+      .map(m => parseInt(m.movieId))
+      .filter(id => !isNaN(id) && isFinite(id));
+    
+    const moviesWithDetails = validMovieIds.length > 0
+      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
+      : [];
     
     // Create a map for quick lookup
     const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details
-    const dislikedMoviesWithDetails = user.dislikedMovies.map(userMovie => {
-      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+    // Combine user data with full movie details, filtering out NaN IDs
+    const dislikedMoviesWithDetails = user.dislikedMovies
+      .filter(userMovie => {
+        const id = parseInt(userMovie.movieId);
+        return !isNaN(id) && isFinite(id);
+      })
+      .map(userMovie => {
+        const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
       if (movieDetails) {
         return {
           tmdbId: movieDetails.tmdbId,
@@ -386,6 +422,12 @@ exports.addToFavorites = async (req, res) => {
       return res.status(400).json({ error: 'movieId is required' });
     }
 
+    // Validate movieId is a valid number
+    const parsedId = parseInt(movieId);
+    if (isNaN(parsedId) || !isFinite(parsedId) || movieId === 'NaN') {
+      return res.status(400).json({ error: 'Invalid movieId: must be a valid number' });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -428,15 +470,31 @@ exports.getFavoriteMovies = async (req, res) => {
 
     // Fetch full movie details from Movie collection
     const Movie = require('../models/Movie');
-    const movieIds = user.favoriteMovies.map(m => parseInt(m.movieId));
-    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    // Filter out NaN movieIds and convert to integers
+    const validMovieIds = user.favoriteMovies
+      .map(m => parseInt(m.movieId))
+      .filter(id => !isNaN(id) && isFinite(id));
+    
+    console.log('=== GET FAVORITE MOVIES DEBUG ===');
+    console.log('Total favorite movies:', user.favoriteMovies.length);
+    console.log('Valid movie IDs:', validMovieIds.length);
+    
+    const moviesWithDetails = validMovieIds.length > 0 
+      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
+      : [];
     
     // Create a map for quick lookup
     const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details
-    const favoriteMoviesWithDetails = user.favoriteMovies.map(userMovie => {
-      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+    // Combine user data with full movie details, filtering out NaN IDs
+    const favoriteMoviesWithDetails = user.favoriteMovies
+      .filter(userMovie => {
+        const id = parseInt(userMovie.movieId);
+        return !isNaN(id) && isFinite(id);
+      })
+      .map(userMovie => {
+        const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
       if (movieDetails) {
         return {
           tmdbId: movieDetails.tmdbId,
