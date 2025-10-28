@@ -18,8 +18,8 @@ if (!process.env.AUTH_GOOGLE_ID || !process.env.AUTH_GOOGLE_SECRET) {
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
-        // Check if MongoDB is connected - wait up to 3 seconds for connection
-        let retries = 6; // 6 retries * 500ms = 3 seconds max wait
+        // Check if MongoDB is connected - wait up to 10 seconds for connection
+        let retries = 20; // 20 retries * 500ms = 10 seconds max wait
         while (mongoose.connection.readyState !== 1 && retries > 0) {
           console.log('Waiting for MongoDB connection... retries left:', retries);
           await new Promise(resolve => setTimeout(resolve, 500));

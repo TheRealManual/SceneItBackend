@@ -7,10 +7,22 @@ const loginSuccess = (req, res) => {
   console.log('Login successful for user:', req.user?.displayName);
   console.log('Session ID:', req.sessionID);
   console.log('Session:', req.session);
+  console.log('User authenticated:', req.isAuthenticated?.());
   
-  // Redirect to frontend after successful login
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  res.redirect(frontendUrl);
+  // Save session before redirecting (important for reverse proxies)
+  req.session.save((err) => {
+    if (err) {
+      console.error('Session save error:', err);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return res.redirect(`${frontendUrl}?error=session_error`);
+    }
+    
+    console.log('Session saved successfully');
+    
+    // Redirect to frontend after successful login
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(frontendUrl);
+  });
 };
 
 const loginFailure = (_req, res) => {
@@ -43,7 +55,7 @@ const logout = (req, res, next) => {
   req.logout(err => {
     if (err) return next(err);
     req.session.destroy(() => {
-      res.clearCookie('connect.sid');
+      res.clearCookie('sceneit.sid'); // Match the cookie name in server.js
       res.json({ status: 'ok' });
     });
   });

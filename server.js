@@ -1,5 +1,6 @@
 require('dotenv').config();
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const passport = require('./middleware/google.strategy');
 const express = require('express');
 const cors = require('cors');
@@ -35,6 +36,13 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    touchAfter: 24 * 3600, // Lazy session update (seconds)
+    crypto: {
+      secret: process.env.SESSION_SECRET || 'your_secret_key'
+    }
+  }),
   proxy: true, // Trust the reverse proxy
   name: 'sceneit.sid', // Custom cookie name
   cookie: {
