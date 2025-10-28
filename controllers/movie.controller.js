@@ -66,9 +66,17 @@ const movieController = {
       
       console.log(`🎲 Fetching ${count} random movies for carousel`);
       
-      // Use MongoDB aggregation to get random movies
+      // Use MongoDB aggregation to get random movies with better distribution
+      // Only fetch movies with posters and good ratings for better UX
       const movies = await Movie.aggregate([
-        { $sample: { size: count } }
+        { 
+          $match: { 
+            posterPath: { $exists: true, $ne: null },
+            voteAverage: { $gte: 5.0 } // Only decent rated movies
+          } 
+        },
+        { $sample: { size: count * 2 } }, // Get more than needed
+        { $limit: count } // Then limit to requested amount
       ]);
       
       console.log(`✅ Found ${movies.length} random movies`);

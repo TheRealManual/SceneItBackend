@@ -71,11 +71,18 @@ class MovieSearchService {
 
     console.log('📊 Database query:', JSON.stringify(query, null, 2));
 
-    // Fetch filtered movies (limit to 100 for AI processing efficiency)
-    const movies = await Movie.find(query)
+    // Fetch filtered movies with some randomization to avoid always getting the same results
+    // We fetch more than we need and shuffle them for variety
+    const allMovies = await Movie.find(query)
       .sort({ popularity: -1, voteAverage: -1 }) // Sort by popularity and rating
-      .limit(100)
+      .limit(300) // Fetch more movies
       .lean();
+
+    // Shuffle the array to add randomization while keeping quality movies
+    const shuffled = allMovies.sort(() => Math.random() - 0.5);
+    
+    // Take the first 100 for AI processing
+    const movies = shuffled.slice(0, 100);
 
     return movies;
   }
