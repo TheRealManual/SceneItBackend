@@ -18,10 +18,17 @@ if (!process.env.AUTH_GOOGLE_ID || !process.env.AUTH_GOOGLE_SECRET) {
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
-        // Check if MongoDB is connected
+        // Check if MongoDB is connected - wait up to 3 seconds for connection
+        let retries = 6; // 6 retries * 500ms = 3 seconds max wait
+        while (mongoose.connection.readyState !== 1 && retries > 0) {
+          console.log('Waiting for MongoDB connection... retries left:', retries);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries--;
+        }
+        
         if (mongoose.connection.readyState !== 1) {
-          console.error('MongoDB not connected - cannot authenticate user');
-          return done(new Error('Database connection not available'), null);
+          console.error('MongoDB not connected after waiting - cannot authenticate user');
+          return done(new Error('Database connection not available. Please try again in a moment.'), null);
         }
 
         // Find or create user in database with timeout
@@ -73,7 +80,14 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
   try {
-    // Check if MongoDB is connected
+    // Check if MongoDB is connected - wait up to 2 seconds for connection
+    let retries = 4; // 4 retries * 500ms = 2 seconds max wait
+    while (mongoose.connection.readyState !== 1 && retries > 0) {
+      console.log('Waiting for MongoDB connection (deserialize)... retries left:', retries);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      retries--;
+    }
+    
     if (mongoose.connection.readyState !== 1) {
       console.error('MongoDB not connected - cannot deserialize user');
       return done(new Error('Database connection not available'), null);
