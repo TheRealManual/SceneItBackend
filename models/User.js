@@ -103,6 +103,18 @@ const userSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  favoriteMovies: [{
+    movieId: {
+      type: String,
+      required: true
+    },
+    title: String,
+    posterPath: String,
+    favoritedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   lastActive: {
     type: Date,
     default: Date.now

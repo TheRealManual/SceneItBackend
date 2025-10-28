@@ -10,7 +10,7 @@ const movieController = {
       console.log('User:', req.user?.displayName || 'Guest');
       
       const searchService = new MovieSearchService(process.env.GEMINI_API_KEY);
-      const movies = await searchService.searchMovies(preferences);
+      const movies = await searchService.searchMovies(preferences, req.user);
       
       res.json({
         success: true,
@@ -66,15 +66,28 @@ const movieController = {
       
       console.log(`🎲 Fetching ${count} random movies for carousel`);
       
+      // Build match query
+      const matchQuery = { 
+        posterPath: { $exists: true, $ne: null },
+        voteAverage: { $gte: 5.0 } // Only decent rated movies
+      };
+
+      // If user is authenticated, exclude already-rated movies
+      if (req.user) {
+        const ratedMovieIds = [
+          ...req.user.likedMovies.map(m => m.movieId),
+          ...req.user.dislikedMovies.map(m => m.movieId)
+        ];
+        
+        if (ratedMovieIds.length > 0) {
+          matchQuery.tmdbId = { $nin: ratedMovieIds.map(id => parseInt(id)) };
+          console.log(`🚫 Filtering out ${ratedMovieIds.length} already-rated movies`);
+        }
+      }
+      
       // Use MongoDB aggregation to get random movies with better distribution
-      // Only fetch movies with posters and good ratings for better UX
       const movies = await Movie.aggregate([
-        { 
-          $match: { 
-            posterPath: { $exists: true, $ne: null },
-            voteAverage: { $gte: 5.0 } // Only decent rated movies
-          } 
-        },
+        { $match: matchQuery },
         { $sample: { size: count * 2 } }, // Get more than needed
         { $limit: count } // Then limit to requested amount
       ]);

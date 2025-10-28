@@ -29,4 +29,13 @@ router.get('/movies/disliked', isAuthenticated, userController.getDislikedMovies
 // Remove movie from liked list
 router.delete('/movies/liked/:movieId', isAuthenticated, userController.removeLikedMovie);
 
+// Favorite movies
+router.post('/movies/favorites', isAuthenticated, userController.addToFavorites);
+router.get('/movies/favorites', isAuthenticated, userController.getFavoriteMovies);
+router.delete('/movies/favorites/:movieId', isAuthenticated, userController.removeFavoriteMovie);
+
+// Move movies between liked and disliked
+router.post('/movies/move-to-disliked', isAuthenticated, userController.moveToDisliked);
+router.post('/movies/move-to-liked', isAuthenticated, userController.moveToLiked);
+
 module.exports = router;

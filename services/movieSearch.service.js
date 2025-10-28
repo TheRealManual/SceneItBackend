@@ -244,7 +244,7 @@ Rules: score >= 0.4, top 30 max, sort by score desc.`;
   /**
    * Main search function
    */
-  async searchMovies(preferences) {
+  async searchMovies(preferences, user = null) {
     console.log('\n' + '='.repeat(80));
     console.log('🔍 MOVIE SEARCH STARTED');
     console.log('='.repeat(80));
@@ -262,9 +262,33 @@ Rules: score >= 0.4, top 30 max, sort by score desc.`;
       return [];
     }
 
+    // Filter out already rated movies if user provided
+    let moviesToProcess = filteredMovies;
+    if (user) {
+      const ratedMovieIds = new Set([
+        ...user.likedMovies.map(m => m.movieId),
+        ...user.dislikedMovies.map(m => m.movieId)
+      ]);
+      
+      moviesToProcess = filteredMovies.filter(movie => 
+        !ratedMovieIds.has(movie.tmdbId.toString())
+      );
+      
+      const removedCount = filteredMovies.length - moviesToProcess.length;
+      if (removedCount > 0) {
+        console.log(`🚫 Filtered out ${removedCount} already-rated movies`);
+        console.log(`✅ ${moviesToProcess.length} unrated movies remaining\n`);
+      }
+    }
+
+    if (moviesToProcess.length === 0) {
+      console.log('❌ No unrated movies found\n');
+      return [];
+    }
+
     console.log('📦 Sample of filtered movies:');
     console.table(
-      filteredMovies.slice(0, 5).map(m => ({
+      moviesToProcess.slice(0, 5).map(m => ({
         'Title': m.title,
         'Year': m.releaseDate ? new Date(m.releaseDate).getFullYear() : 'N/A',
         'Rating': m.voteAverage,
@@ -285,7 +309,7 @@ Rules: score >= 0.4, top 30 max, sort by score desc.`;
 
     if (hasSubjectivePrefs) {
       console.log('🤖 Step 2: Analyzing movies with Gemini AI...\n');
-      const rankedMovies = await this.analyzeMoviesWithAI(filteredMovies, preferences);
+      const rankedMovies = await this.analyzeMoviesWithAI(moviesToProcess, preferences);
       console.log(`✅ AI ranked ${rankedMovies.length} movies\n`);
       
       console.log('='.repeat(80));
@@ -297,7 +321,7 @@ Rules: score >= 0.4, top 30 max, sort by score desc.`;
 
     // No subjective preferences - return filtered movies sorted by popularity
     console.log('⚡ Skipping AI analysis (using default preferences)\n');
-    const results = filteredMovies.map(m => ({ 
+    const results = moviesToProcess.map(m => ({ 
       ...m, 
       matchScore: (m.popularity / 1000) + (m.voteAverage / 100),
       matchReason: 'Sorted by popularity and rating'

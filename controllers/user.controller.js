@@ -282,3 +282,201 @@ exports.removeLikedMovie = async (req, res) => {
     res.status(500).json({ error: 'Failed to remove liked movie' });
   }
 };
+
+// Add movie to favorites
+exports.addToFavorites = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { movieId, title, posterPath } = req.body;
+    
+    if (!movieId) {
+      return res.status(400).json({ error: 'movieId is required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if already in favorites
+    const alreadyFavorited = user.favoriteMovies.some(
+      movie => movie.movieId === movieId
+    );
+
+    if (!alreadyFavorited) {
+      user.favoriteMovies.push({
+        movieId,
+        title: title || '',
+        posterPath: posterPath || ''
+      });
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Movie added to favorites successfully',
+      favoriteMovies: user.favoriteMovies
+    });
+  } catch (error) {
+    console.error('Error adding to favorites:', error);
+    res.status(500).json({ error: 'Failed to add to favorites' });
+  }
+};
+
+// Get favorite movies
+exports.getFavoriteMovies = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      favoriteMovies: user.favoriteMovies
+    });
+  } catch (error) {
+    console.error('Error getting favorite movies:', error);
+    res.status(500).json({ error: 'Failed to get favorite movies' });
+  }
+};
+
+// Remove a movie from favorites
+exports.removeFavoriteMovie = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { movieId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.favoriteMovies = user.favoriteMovies.filter(
+      movie => movie.movieId !== movieId
+    );
+
+    await user.save();
+
+    res.json({
+      message: 'Movie removed from favorites',
+      favoriteMovies: user.favoriteMovies
+    });
+  } catch (error) {
+    console.error('Error removing favorite movie:', error);
+    res.status(500).json({ error: 'Failed to remove favorite movie' });
+  }
+};
+
+// Move a movie from liked to disliked
+exports.moveToDisliked = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { movieId, title, posterPath } = req.body;
+    
+    if (!movieId) {
+      return res.status(400).json({ error: 'movieId is required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove from liked movies
+    user.likedMovies = user.likedMovies.filter(
+      movie => movie.movieId !== movieId
+    );
+
+    // Remove from favorites if it exists
+    user.favoriteMovies = user.favoriteMovies.filter(
+      movie => movie.movieId !== movieId
+    );
+
+    // Check if already in disliked
+    const alreadyDisliked = user.dislikedMovies.some(
+      movie => movie.movieId === movieId
+    );
+
+    if (!alreadyDisliked) {
+      user.dislikedMovies.push({
+        movieId,
+        title: title || '',
+        posterPath: posterPath || ''
+      });
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Movie moved to disliked successfully',
+      likedMovies: user.likedMovies,
+      dislikedMovies: user.dislikedMovies,
+      favoriteMovies: user.favoriteMovies
+    });
+  } catch (error) {
+    console.error('Error moving to disliked:', error);
+    res.status(500).json({ error: 'Failed to move to disliked' });
+  }
+};
+
+// Move a movie from disliked to liked
+exports.moveToLiked = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { movieId, title, posterPath } = req.body;
+    
+    if (!movieId) {
+      return res.status(400).json({ error: 'movieId is required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove from disliked movies
+    user.dislikedMovies = user.dislikedMovies.filter(
+      movie => movie.movieId !== movieId
+    );
+
+    // Check if already in liked
+    const alreadyLiked = user.likedMovies.some(
+      movie => movie.movieId === movieId
+    );
+
+    if (!alreadyLiked) {
+      user.likedMovies.push({
+        movieId,
+        title: title || '',
+        posterPath: posterPath || ''
+      });
+    }
+
+    await user.save();
+
+    res.json({
+      message: 'Movie moved to liked successfully',
+      likedMovies: user.likedMovies,
+      dislikedMovies: user.dislikedMovies
+    });
+  } catch (error) {
+    console.error('Error moving to liked:', error);
+    res.status(500).json({ error: 'Failed to move to liked' });
+  }
+};

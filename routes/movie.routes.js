@@ -10,11 +10,17 @@ const isAuthenticated = (req, res, next) => {
   res.status(401).json({ error: 'Not authenticated' });
 };
 
+// Optional authentication middleware (doesn't fail if not authenticated)
+const optionalAuth = (req, res, next) => {
+  // Just continue - req.user will be set if authenticated, undefined otherwise
+  next();
+};
+
 // Search movies (authenticated users only)
 router.post('/search', isAuthenticated, movieController.searchMovies);
 
-// Get random movies for carousel (no auth required)
-router.get('/random', movieController.getRandomMovies);
+// Get random movies for carousel (optional auth for filtering)
+router.get('/random', optionalAuth, movieController.getRandomMovies);
 
 // Get movie by ID
 router.get('/:id', movieController.getMovieById);
