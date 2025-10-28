@@ -4,11 +4,12 @@ const passport = require('./middleware/google.strategy');
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
+const mongoose = require('mongoose');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const movieRoutes = require('./routes/movie.routes');
 
-// Connect to MongoDB
+// Connect to MongoDB (non-blocking)
 connectDB();
 
 const app = express();
@@ -62,7 +63,18 @@ app.get('/', (_req, res) => res.json({
   }
 }));
 
-app.get('/health', (_req, res) => res.status(200).send('ok'));
+app.get('/health', (_req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const dbStatusText = ['disconnected', 'connected', 'connecting', 'disconnecting'][dbStatus];
+  
+  // Return 200 OK even if DB is not connected yet - allows health check to pass
+  res.status(200).json({ 
+    status: 'ok',
+    database: dbStatusText,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/ping', (_req, res) => res.json({ ok: true }));
 app.get('/api/status', (_req, res) => res.json({ 
   status: 'success',
