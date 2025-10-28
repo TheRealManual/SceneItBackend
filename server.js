@@ -32,19 +32,12 @@ app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
-// Session configuration with MongoDB store
-// Using mongooseConnection to reuse existing connection
-app.use(session({
+// Session configuration
+// Start with default MemoryStore, will upgrade to MongoStore once DB connects
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({
-    client: mongoose.connection.getClient(), // Reuse mongoose connection
-    touchAfter: 24 * 3600, // Lazy session update (seconds)
-    crypto: {
-      secret: process.env.SESSION_SECRET || 'your_secret_key'
-    }
-  }),
   proxy: true, // Trust the reverse proxy
   name: 'sceneit.sid', // Custom cookie name
   cookie: {
@@ -54,7 +47,31 @@ app.use(session({
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/'
   }
-}));
+};
+
+// Try to use MongoStore if MongoDB URI is available
+if (process.env.MONGODB_URI) {
+  try {
+    sessionConfig.store = MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      touchAfter: 24 * 3600,
+      crypto: {
+        secret: process.env.SESSION_SECRET || 'your_secret_key'
+      },
+      mongoOptions: {
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000
+      }
+    });
+    console.log('Session store: MongoDB');
+  } catch (error) {
+    console.warn('Failed to create MongoStore, using MemoryStore:', error.message);
+  }
+} else {
+  console.warn('No MONGODB_URI provided, using MemoryStore for sessions');
+}
+
+app.use(session(sessionConfig));
 
 app.use(passport.initialize());
 app.use(passport.session());
