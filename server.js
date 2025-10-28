@@ -32,12 +32,14 @@ app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
+// Session configuration with MongoDB store
+// Using mongooseConnection to reuse existing connection
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_secret_key',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({
-    mongoUrl: process.env.MONGODB_URI,
+    client: mongoose.connection.getClient(), // Reuse mongoose connection
     touchAfter: 24 * 3600, // Lazy session update (seconds)
     crypto: {
       secret: process.env.SESSION_SECRET || 'your_secret_key'
