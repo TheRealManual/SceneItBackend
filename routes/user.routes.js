@@ -26,6 +26,10 @@ router.post('/movies/dislike', isAuthenticated, userController.dislikeMovie);
 router.get('/movies/liked', isAuthenticated, userController.getLikedMovies);
 router.get('/movies/disliked', isAuthenticated, userController.getDislikedMovies);
 
+// Clear all liked or disliked movies (MUST come before :movieId routes)
+router.delete('/movies/liked/clear', isAuthenticated, userController.clearLikedMovies);
+router.delete('/movies/disliked/clear', isAuthenticated, userController.clearDislikedMovies);
+
 // Remove movie from liked list
 router.delete('/movies/liked/:movieId', isAuthenticated, userController.removeLikedMovie);
 

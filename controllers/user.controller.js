@@ -122,7 +122,7 @@ exports.likeMovie = async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { movieId, title, posterPath } = req.body;
+    const { movieId } = req.body;
     
     if (!movieId) {
       return res.status(400).json({ error: 'movieId is required' });
@@ -145,9 +145,7 @@ exports.likeMovie = async (req, res) => {
 
     if (!alreadyLiked) {
       user.likedMovies.push({
-        movieId,
-        title: title || '',
-        posterPath: posterPath || ''
+        movieId
       });
     }
 
@@ -170,7 +168,7 @@ exports.dislikeMovie = async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { movieId, title, posterPath } = req.body;
+    const { movieId } = req.body;
     
     if (!movieId) {
       return res.status(400).json({ error: 'movieId is required' });
@@ -193,9 +191,7 @@ exports.dislikeMovie = async (req, res) => {
 
     if (!alreadyDisliked) {
       user.dislikedMovies.push({
-        movieId,
-        title: title || '',
-        posterPath: posterPath || ''
+        movieId
       });
     }
 
@@ -223,8 +219,64 @@ exports.getLikedMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Fetch full movie details from Movie collection
+    const Movie = require('../models/Movie');
+    const movieIds = user.likedMovies.map(m => parseInt(m.movieId));
+    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    console.log('=== GET LIKED MOVIES DEBUG ===');
+    console.log('Number of liked movies:', movieIds.length);
+    console.log('Number of movies fetched from DB:', moviesWithDetails.length);
+    if (moviesWithDetails.length > 0) {
+      const firstMovie = moviesWithDetails[0];
+      console.log('Sample movie data:', {
+        title: firstMovie.title,
+        hasKeywords: !!firstMovie.keywords && firstMovie.keywords.length > 0,
+        keywordsCount: firstMovie.keywords?.length || 0,
+        hasLanguage: !!firstMovie.language,
+        language: firstMovie.language,
+        hasDirector: !!firstMovie.director,
+        director: firstMovie.director,
+        hasCast: !!firstMovie.cast && firstMovie.cast.length > 0,
+        castCount: firstMovie.cast?.length || 0
+      });
+    }
+    
+    // Create a map for quick lookup
+    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    
+    // Combine user data with full movie details
+    const likedMoviesWithDetails = user.likedMovies.map(userMovie => {
+      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+      if (movieDetails) {
+        return {
+          tmdbId: movieDetails.tmdbId,
+          title: movieDetails.title,
+          posterPath: movieDetails.posterPath,
+          overview: movieDetails.overview,
+          releaseDate: movieDetails.releaseDate,
+          genres: movieDetails.genres,
+          voteAverage: movieDetails.voteAverage,
+          ageRating: movieDetails.ageRating,
+          runtime: movieDetails.runtime,
+          keywords: movieDetails.keywords,
+          language: movieDetails.language,
+          director: movieDetails.director,
+          cast: movieDetails.cast,
+          likedAt: userMovie.likedAt
+        };
+      }
+      // Fallback to user data if movie not found in database
+      return {
+        tmdbId: parseInt(userMovie.movieId),
+        title: userMovie.title,
+        posterPath: userMovie.posterPath,
+        likedAt: userMovie.likedAt
+      };
+    }).filter(m => m !== null);
+
     res.json({
-      likedMovies: user.likedMovies
+      likedMovies: likedMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting liked movies:', error);
@@ -244,8 +296,46 @@ exports.getDislikedMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Fetch full movie details from Movie collection
+    const Movie = require('../models/Movie');
+    const movieIds = user.dislikedMovies.map(m => parseInt(m.movieId));
+    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    // Create a map for quick lookup
+    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    
+    // Combine user data with full movie details
+    const dislikedMoviesWithDetails = user.dislikedMovies.map(userMovie => {
+      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+      if (movieDetails) {
+        return {
+          tmdbId: movieDetails.tmdbId,
+          title: movieDetails.title,
+          posterPath: movieDetails.posterPath,
+          overview: movieDetails.overview,
+          releaseDate: movieDetails.releaseDate,
+          genres: movieDetails.genres,
+          voteAverage: movieDetails.voteAverage,
+          ageRating: movieDetails.ageRating,
+          runtime: movieDetails.runtime,
+          keywords: movieDetails.keywords,
+          language: movieDetails.language,
+          director: movieDetails.director,
+          cast: movieDetails.cast,
+          dislikedAt: userMovie.dislikedAt
+        };
+      }
+      // Fallback to user data if movie not found in database
+      return {
+        tmdbId: parseInt(userMovie.movieId),
+        title: userMovie.title,
+        posterPath: userMovie.posterPath,
+        dislikedAt: userMovie.dislikedAt
+      };
+    }).filter(m => m !== null);
+
     res.json({
-      dislikedMovies: user.dislikedMovies
+      dislikedMovies: dislikedMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting disliked movies:', error);
@@ -290,7 +380,7 @@ exports.addToFavorites = async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { movieId, title, posterPath } = req.body;
+    const { movieId } = req.body;
     
     if (!movieId) {
       return res.status(400).json({ error: 'movieId is required' });
@@ -308,9 +398,7 @@ exports.addToFavorites = async (req, res) => {
 
     if (!alreadyFavorited) {
       user.favoriteMovies.push({
-        movieId,
-        title: title || '',
-        posterPath: posterPath || ''
+        movieId
       });
     }
 
@@ -338,8 +426,46 @@ exports.getFavoriteMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Fetch full movie details from Movie collection
+    const Movie = require('../models/Movie');
+    const movieIds = user.favoriteMovies.map(m => parseInt(m.movieId));
+    const moviesWithDetails = await Movie.find({ tmdbId: { $in: movieIds } });
+    
+    // Create a map for quick lookup
+    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    
+    // Combine user data with full movie details
+    const favoriteMoviesWithDetails = user.favoriteMovies.map(userMovie => {
+      const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
+      if (movieDetails) {
+        return {
+          tmdbId: movieDetails.tmdbId,
+          title: movieDetails.title,
+          posterPath: movieDetails.posterPath,
+          overview: movieDetails.overview,
+          releaseDate: movieDetails.releaseDate,
+          genres: movieDetails.genres,
+          voteAverage: movieDetails.voteAverage,
+          ageRating: movieDetails.ageRating,
+          runtime: movieDetails.runtime,
+          keywords: movieDetails.keywords,
+          language: movieDetails.language,
+          director: movieDetails.director,
+          cast: movieDetails.cast,
+          favoritedAt: userMovie.favoritedAt
+        };
+      }
+      // Fallback to user data if movie not found in database
+      return {
+        tmdbId: parseInt(userMovie.movieId),
+        title: userMovie.title,
+        posterPath: userMovie.posterPath,
+        favoritedAt: userMovie.favoritedAt
+      };
+    }).filter(m => m !== null);
+
     res.json({
-      favoriteMovies: user.favoriteMovies
+      favoriteMovies: favoriteMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting favorite movies:', error);
@@ -478,5 +604,58 @@ exports.moveToLiked = async (req, res) => {
   } catch (error) {
     console.error('Error moving to liked:', error);
     res.status(500).json({ error: 'Failed to move to liked' });
+  }
+};
+
+// Clear all liked movies
+exports.clearLikedMovies = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Clear both liked movies and favorites
+    user.likedMovies = [];
+    user.favoriteMovies = [];
+    await user.save();
+
+    res.json({
+      message: 'All liked movies and favorites cleared successfully',
+      likedMovies: [],
+      favoriteMovies: []
+    });
+  } catch (error) {
+    console.error('Error clearing liked movies:', error);
+    res.status(500).json({ error: 'Failed to clear liked movies' });
+  }
+};
+
+// Clear all disliked movies
+exports.clearDislikedMovies = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    user.dislikedMovies = [];
+    await user.save();
+
+    res.json({
+      message: 'All disliked movies cleared successfully',
+      dislikedMovies: []
+    });
+  } catch (error) {
+    console.error('Error clearing disliked movies:', error);
+    res.status(500).json({ error: 'Failed to clear disliked movies' });
   }
 };

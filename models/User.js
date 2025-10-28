@@ -84,8 +84,6 @@ const userSchema = new mongoose.Schema({
       type: String,
       required: true
     },
-    title: String,
-    posterPath: String,
     likedAt: {
       type: Date,
       default: Date.now
@@ -96,8 +94,6 @@ const userSchema = new mongoose.Schema({
       type: String,
       required: true
     },
-    title: String,
-    posterPath: String,
     dislikedAt: {
       type: Date,
       default: Date.now
@@ -108,8 +104,6 @@ const userSchema = new mongoose.Schema({
       type: String,
       required: true
     },
-    title: String,
-    posterPath: String,
     favoritedAt: {
       type: Date,
       default: Date.now

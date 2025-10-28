@@ -168,12 +168,15 @@ class MovieSearchService {
       console.error(error);
       console.error('='.repeat(80) + '\n');
       
-      // Fallback: return movies sorted by popularity
-      return movies.map(m => ({ 
-        ...m, 
-        matchScore: m.popularity / 1000,
-        matchReason: 'Sorted by popularity (AI analysis failed)'
-      }));
+      // Fallback: return top 10 movies sorted by popularity
+      return movies
+        .map(m => ({ 
+          ...m, 
+          matchScore: m.popularity / 1000,
+          matchReason: 'Sorted by popularity (AI analysis failed)'
+        }))
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 10); // Limit to 10 movies even in fallback
     }
   }
 
@@ -238,7 +241,11 @@ ${JSON.stringify(movieSummaries, null, 2)}
 Return JSON only (no markdown):
 [{"tmdbId": 123, "score": 0.95, "reason": "Brief explanation"}]
 
-Rules: score >= 0.4, top 30 max, sort by score desc.`;
+CRITICAL RULES: 
+- Return EXACTLY 10 movies (no more, no less)
+- Only include movies with score >= 0.6 (good matches only)
+- Sort by score descending (best matches first)
+- Each movie must have unique tmdbId from the list above`;
   }
 
   /**
@@ -312,20 +319,29 @@ Rules: score >= 0.4, top 30 max, sort by score desc.`;
       const rankedMovies = await this.analyzeMoviesWithAI(moviesToProcess, preferences);
       console.log(`✅ AI ranked ${rankedMovies.length} movies\n`);
       
+      // Ensure we return exactly 10 movies (safety check)
+      const finalResults = rankedMovies.slice(0, 10);
+      console.log(`🎯 Returning ${finalResults.length} movies to user\n`);
+      
       console.log('='.repeat(80));
       console.log('🎬 SEARCH COMPLETE');
       console.log('='.repeat(80) + '\n');
       
-      return rankedMovies;
+      return finalResults;
     }
 
     // No subjective preferences - return filtered movies sorted by popularity
     console.log('⚡ Skipping AI analysis (using default preferences)\n');
-    const results = moviesToProcess.map(m => ({ 
-      ...m, 
-      matchScore: (m.popularity / 1000) + (m.voteAverage / 100),
-      matchReason: 'Sorted by popularity and rating'
-    }));
+    const results = moviesToProcess
+      .map(m => ({ 
+        ...m, 
+        matchScore: (m.popularity / 1000) + (m.voteAverage / 100),
+        matchReason: 'Sorted by popularity and rating'
+      }))
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 10); // Limit to 10 movies
+    
+    console.log(`🎯 Returning ${results.length} movies to user\n`);
     
     console.log('='.repeat(80));
     console.log('🎬 SEARCH COMPLETE');
