@@ -109,6 +109,29 @@ const userSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  watchedMovies: [{
+    movieId: {
+      type: String,
+      required: true
+    },
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+      validate: {
+        validator: function(v) {
+          // Allow only increments of 0.5 (1, 1.5, 2, 2.5, etc.)
+          return v * 2 === Math.floor(v * 2);
+        },
+        message: 'Rating must be in increments of 0.5 (1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5)'
+      }
+    },
+    watchedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   lastActive: {
     type: Date,
     default: Date.now

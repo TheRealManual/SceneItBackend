@@ -42,4 +42,10 @@ router.delete('/movies/favorites/:movieId', isAuthenticated, userController.remo
 router.post('/movies/move-to-disliked', isAuthenticated, userController.moveToDisliked);
 router.post('/movies/move-to-liked', isAuthenticated, userController.moveToLiked);
 
+// Watched movies
+router.post('/movies/watch', isAuthenticated, userController.watchMovie);
+router.get('/movies/watched', isAuthenticated, userController.getWatchedMovies);
+router.put('/movies/watch/:movieId', isAuthenticated, userController.updateWatchedRating);
+router.delete('/movies/watch/:movieId', isAuthenticated, userController.unwatchMovie);
+
 module.exports = router;

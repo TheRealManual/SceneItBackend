@@ -27,6 +27,8 @@ const movieSchema = new mongoose.Schema({
   }],
   director: String,
   keywords: [String],
+  totalRating: { type: Number, default: 0 }, // Sum of all user ratings
+  ratingCount: { type: Number, default: 0 }, // Number of users who rated this movie
   lastUpdated: { type: Date, default: Date.now }
 });
 
