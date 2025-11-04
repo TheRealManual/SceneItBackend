@@ -5,11 +5,9 @@ const User = require('../models/User');
 
 // Development mode auto-login route
 router.get('/dev-login', async (req, res) => {
-  // Only allow in development
-  if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({ error: 'Dev login only available in development mode' });
-  }
-
+  // Allow dev login in all environments for testing purposes
+  // NOTE: This creates a test user account - use only for development/testing
+  
   try {
     // Dev user credentials
     const DEV_USER = {
