@@ -28,6 +28,20 @@ const gameRatingSchema = new mongoose.Schema({
   gameMovies: [{
     type: Number  // Array of movie IDs that were in the game
   }],
+  searchPreferences: {
+    description: String,
+    releaseYear: [Number],
+    runtime: [Number],
+    imdbRating: [Number],
+    ageRating: String,
+    moodIntensity: Number,
+    humorLevel: Number,
+    violenceLevel: Number,
+    romanceLevel: Number,
+    complexityLevel: Number,
+    genres: mongoose.Schema.Types.Mixed,
+    language: String
+  },
   createdAt: {
     type: Date,
     default: Date.now

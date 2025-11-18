@@ -9,7 +9,7 @@ router.post('/submit', async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const { overallRating, movieFeedback, gameMovies } = req.body;
+    const { overallRating, movieFeedback, gameMovies, searchPreferences } = req.body;
 
     if (!overallRating || overallRating < 1 || overallRating > 5) {
       return res.status(400).json({ error: 'Invalid overall rating' });
@@ -31,7 +31,8 @@ router.post('/submit', async (req, res) => {
       userId: req.user._id,
       overallRating,
       movieFeedback: feedbackArray,
-      gameMovies: gameMovies || []
+      gameMovies: gameMovies || [],
+      searchPreferences: searchPreferences || {}
     });
 
     await gameRating.save();
