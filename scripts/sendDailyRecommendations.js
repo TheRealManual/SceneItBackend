@@ -321,7 +321,7 @@ const generateEmailHTML = (userName, userEmail, newFavorites, newLiked, rewatchM
         You're receiving this because you have an account with SceneIt.
       </p>
       <p style="margin-top: 15px;">
-        <a href="https://sceneit-backend-api.onrender.com/unsubscribe.html?email=${encodeURIComponent(userEmail)}" 
+        <a href="https://d3tyh2pxka.us-east-1.awsapprunner.com/unsubscribe.html?email=${encodeURIComponent(userEmail)}" 
            style="color: #808080; text-decoration: underline; font-size: 12px;">
           Unsubscribe from daily recommendations
         </a>
