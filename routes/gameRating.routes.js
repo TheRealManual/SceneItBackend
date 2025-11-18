@@ -15,15 +15,17 @@ router.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'Invalid overall rating' });
     }
 
-    if (!movieFeedback || !Array.isArray(movieFeedback)) {
+    if (!movieFeedback || typeof movieFeedback !== 'object') {
       return res.status(400).json({ error: 'Invalid movie feedback' });
     }
 
     // Convert movieFeedback object to array format
-    const feedbackArray = Object.entries(movieFeedback).map(([movieId, feedback]) => ({
-      movieId: parseInt(movieId),
-      feedback
-    }));
+    const feedbackArray = Object.entries(movieFeedback)
+      .filter(([, feedback]) => feedback) // Filter out undefined values
+      .map(([movieId, feedback]) => ({
+        movieId: parseInt(movieId),
+        feedback
+      }));
 
     const gameRating = new GameRating({
       userId: req.user._id,
