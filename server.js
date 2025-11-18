@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const movieRoutes = require('./routes/movie.routes');
 const emailRoutes = require('./routes/email.routes');
+const gameRatingRoutes = require('./routes/gameRating.routes');
 
 // Connect to MongoDB (non-blocking)
 connectDB();
@@ -85,6 +86,7 @@ app.use('/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/game-rating', gameRatingRoutes);
 
 app.get('/', (_req, res) => res.json({ 
   message: 'SceneIt Backend API', 
