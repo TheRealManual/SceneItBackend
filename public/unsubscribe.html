@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unsubscribe - SceneIt</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #000000;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      background: #181818;
+      border-radius: 16px;
+      padding: 50px 40px;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      background: linear-gradient(to right, #e50914, #831010);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    p {
+      color: #b3b3b3;
+      line-height: 1.8;
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+    .status {
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      font-weight: 600;
+    }
+    .status.success {
+      background: rgba(34, 197, 94, 0.1);
+      color: #22c55e;
+      border: 2px solid rgba(34, 197, 94, 0.3);
+    }
+    .status.error {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 2px solid rgba(239, 68, 68, 0.3);
+    }
+    .status.loading {
+      background: rgba(229, 9, 20, 0.1);
+      color: #e50914;
+      border: 2px solid rgba(229, 9, 20, 0.3);
+    }
+    button {
+      background: #e50914;
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    button:hover:not(:disabled) {
+      background: #f40612;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(229, 9, 20, 0.6);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 SceneIt Daily Recommendations</h1>
+    
+    <div id="status" class="status loading">
+      Processing your request...
+    </div>
+    
+    <p id="message">Please wait while we process your unsubscribe request.</p>
+    
+    <button id="actionBtn" class="hidden" onclick="goHome()">Back to SceneIt</button>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const email = urlParams.get('email');
+    
+    if (!email) {
+      showError('Invalid unsubscribe link. Email parameter is missing.');
+    } else {
+      unsubscribe(email);
+    }
+    
+    async function unsubscribe(email) {
+      try {
+        const response = await fetch('/api/email/unsubscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showSuccess('You have been successfully unsubscribed from daily movie recommendations. We\'re sorry to see you go!');
+        } else {
+          showError(data.error || 'Failed to unsubscribe. Please try again.');
+        }
+      } catch (error) {
+        showError('An error occurred. Please try again later.');
+      }
+    }
+    
+    function showSuccess(message) {
+      const statusEl = document.getElementById('status');
+      const messageEl = document.getElementById('message');
+      const btnEl = document.getElementById('actionBtn');
+      
+      statusEl.className = 'status success';
+      statusEl.textContent = '✓ Success';
+      messageEl.textContent = message;
+      btnEl.classList.remove('hidden');
+    }
+    
+    function showError(message) {
+      const statusEl = document.getElementById('status');
+      const messageEl = document.getElementById('message');
+      const btnEl = document.getElementById('actionBtn');
+      
+      statusEl.className = 'status error';
+      statusEl.textContent = '✗ Error';
+      messageEl.textContent = message;
+      btnEl.classList.remove('hidden');
+    }
+    
+    function goHome() {
+      window.location.href = 'https://main.d1ur5bc2o4pggx.amplifyapp.com/';
+    }
+  </script>
+</body>
+</html>

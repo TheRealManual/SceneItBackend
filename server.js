@@ -6,9 +6,11 @@ const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
 const mongoose = require('mongoose');
+const path = require('path');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const movieRoutes = require('./routes/movie.routes');
+const emailRoutes = require('./routes/email.routes');
 
 // Connect to MongoDB (non-blocking)
 connectDB();
@@ -76,9 +78,13 @@ app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Serve static files for unsubscribe page
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use('/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/movies', movieRoutes);
+app.use('/api/email', emailRoutes);
 
 app.get('/', (_req, res) => res.json({ 
   message: 'SceneIt Backend API', 

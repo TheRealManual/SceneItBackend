@@ -27,7 +27,7 @@ const filterValidMovieIds = (movies) => {
 };
 
 // Generate HTML email template
-const generateEmailHTML = (userName, newFavorites, newLiked, rewatchMovies) => {
+const generateEmailHTML = (userName, userEmail, newFavorites, newLiked, rewatchMovies) => {
   return `
 <!DOCTYPE html>
 <html>
@@ -320,6 +320,12 @@ const generateEmailHTML = (userName, newFavorites, newLiked, rewatchMovies) => {
       <p style="margin-top: 10px; font-size: 12px;">
         You're receiving this because you have an account with SceneIt.
       </p>
+      <p style="margin-top: 15px;">
+        <a href="https://sceneit-backend-api.onrender.com/unsubscribe.html?email=${encodeURIComponent(userEmail)}" 
+           style="color: #808080; text-decoration: underline; font-size: 12px;">
+          Unsubscribe from daily recommendations
+        </a>
+      </p>
     </div>
   </div>
 </body>
@@ -356,8 +362,16 @@ const sendDailyRecommendations = async () => {
       users = [testUser];
       console.log(`✅ Found test user: ${testUser.displayName || testUser.email}`);
     } else {
-      users = await User.find({ email: { $exists: true, $ne: null } });
-      console.log(`📧 Found ${users.length} users with email addresses`);
+      // Get all users with emails who haven't unsubscribed
+      // Users without emailPreferences field or with unsubscribedFromRecommendations !== true
+      users = await User.find({ 
+        email: { $exists: true, $ne: null },
+        $or: [
+          { emailPreferences: { $exists: false } },
+          { 'emailPreferences.unsubscribedFromRecommendations': { $ne: true } }
+        ]
+      });
+      console.log(`📧 Found ${users.length} users with email addresses (excluding unsubscribed)`);
     }
     
     let emailsSent = 0;
@@ -419,6 +433,7 @@ const sendDailyRecommendations = async () => {
         // Generate email HTML
         const emailHTML = generateEmailHTML(
           user.displayName || 'Movie Lover',
+          user.email,
           newFavorites,
           newLiked,
           rewatchMovies

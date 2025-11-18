@@ -135,6 +135,21 @@ const userSchema = new mongoose.Schema({
   lastActive: {
     type: Date,
     default: Date.now
+  },
+  emailPreferences: {
+    type: {
+      unsubscribedFromRecommendations: {
+        type: Boolean,
+        default: false
+      },
+      unsubscribedAt: {
+        type: Date
+      }
+    },
+    default: () => ({
+      unsubscribedFromRecommendations: false,
+      unsubscribedAt: null
+    })
   }
 }, {
   timestamps: true
