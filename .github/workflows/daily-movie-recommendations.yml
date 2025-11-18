@@ -1,9 +1,9 @@
-name: Daily Movie Recommendations
+name: Weekly Movie Recommendations
 
 on:
   schedule:
-    # Runs every day at 2:00 PM UTC (adjust timezone as needed)
-    - cron: '0 14 * * *'
+    # Runs every Monday at 2:00 PM UTC (14:00)
+    - cron: '0 14 * * 1'
   workflow_dispatch: # Allows manual triggering for testing
 
 jobs:
