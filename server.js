@@ -1,303 +1,140 @@
+require('dotenv').config();
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+const passport = require('./middleware/google.strategy');
 const express = require('express');
-const router = express.Router();
-const Friend = require('../models/Friend');
-const User = require('../models/User'); // Adjust path based on your structure
+const cors = require('cors');
+const connectDB = require('./config/database');
+const mongoose = require('mongoose');
+const authRoutes = require('./routes/auth.routes');
+const userRoutes = require('./routes/user.routes');
+const movieRoutes = require('./routes/movie.routes');
+const friendRoutes= require('./routes/friends');
 
-// Middleware to ensure user is authenticated
-const requireAuth = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  next();
+// Connect to MongoDB (non-blocking)
+connectDB();
+
+const app = express();
+
+// Configure CORS to allow credentials - SIMPLIFIED
+const corsOptions = {
+  origin: ['http://localhost:5173', 'http://localhost:3000', 'https://main.d1ur5bc2o4pggx.amplifyapp.com'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
 };
 
-// Search for users by name
-router.get('/search', requireAuth, async (req, res) => {
-  try {
-    const { query } = req.query;
-    
-    if (!query || query.length < 2) {
-      return res.json({ users: [] });
-    }
+// Apply CORS before other middleware
+app.use(cors(corsOptions));
 
-    const users = await User.find({
-      $and: [
-        { _id: { $ne: req.user._id } },
-        {
-          $or: [
-            { displayName: { $regex: query, $options: 'i' } },
-            { email: { $regex: query, $options: 'i' } }
-          ]
-        }
-      ]
-    })
-    .select('displayName email profilePhoto')
-    .limit(10);
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
-    res.json({ users });
-  } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ error: 'Failed to search users' });
+app.use(express.json());
+
+// Session configuration
+// Start with default MemoryStore, will upgrade to MongoStore once DB connects
+const sessionConfig = {
+  secret: process.env.SESSION_SECRET || 'your_secret_key',
+  resave: false,
+  saveUninitialized: false,
+  proxy: true, // Trust the reverse proxy
+  name: 'sceneit.sid', // Custom cookie name
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/'
   }
-});
+};
 
-// Send friend request
-router.post('/request', requireAuth, async (req, res) => {
+// Try to use MongoStore if MongoDB URI is available
+if (process.env.MONGODB_URI) {
   try {
-    const { friendId } = req.body;
-    const userId = req.user._id;
-
-    if (userId.toString() === friendId) {
-      return res.status(400).json({ error: 'Cannot send friend request to yourself' });
-    }
-
-    // Check if friend exists
-    const friend = await User.findById(friendId);
-    if (!friend) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Check if there's a previously declined request FROM this user TO the friend
-    const declinedRequest = await Friend.findOne({
-      userId: friendId,
-      friendId: userId,
-      status: 'declined',
-      requestedBy: userId
-    });
-
-    if (declinedRequest) {
-      return res.status(403).json({ 
-        error: 'Cannot send request to user who previously declined you' 
-      });
-    }
-
-    // Check if friendship already exists in either direction
-    const existingFriend = await Friend.findOne({
-      $or: [
-        { userId, friendId },
-        { userId: friendId, friendId: userId }
-      ]
-    });
-
-    if (existingFriend) {
-      if (existingFriend.status === 'accepted') {
-        return res.status(400).json({ error: 'Already friends' });
-      }
-      if (existingFriend.status === 'pending') {
-        return res.status(400).json({ error: 'Friend request already pending' });
-      }
-    }
-
-    // Create bidirectional friendship records
-    await Friend.create([
-      {
-        userId,
-        friendId,
-        status: 'pending',
-        requestedBy: userId
+    sessionConfig.store = MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      touchAfter: 24 * 3600,
+      crypto: {
+        secret: process.env.SESSION_SECRET || 'your_secret_key'
       },
-      {
-        userId: friendId,
-        friendId: userId,
-        status: 'pending',
-        requestedBy: userId
+      mongoOptions: {
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000
       }
-    ]);
-
-    res.json({ message: 'Friend request sent' });
-  } catch (error) {
-    console.error('Friend request error:', error);
-    res.status(500).json({ error: 'Failed to send friend request' });
-  }
-});
-
-// Get all friends (accepted)
-router.get('/list', requireAuth, async (req, res) => {
-  try {
-    const friends = await Friend.find({
-      userId: req.user._id,
-      status: 'accepted'
-    })
-    .populate('friendId', 'displayName email profilePhoto')
-    .sort({ updatedAt: -1 });
-
-    res.json({ friends: friends.map(f => f.friendId) });
-  } catch (error) {
-    console.error('Get friends error:', error);
-    res.status(500).json({ error: 'Failed to get friends' });
-  }
-});
-
-// Get received friend requests
-router.get('/requests/received', requireAuth, async (req, res) => {
-  try {
-    const requests = await Friend.find({
-      userId: req.user._id,
-      status: 'pending',
-      requestedBy: { $ne: req.user._id }
-    })
-    .populate('friendId', 'displayName email profilePhoto')
-    .sort({ createdAt: -1 });
-
-    res.json({ 
-      requests: requests.map(r => ({
-        _id: r._id,
-        user: r.friendId,
-        createdAt: r.createdAt
-      }))
     });
+    console.log('Session store: MongoDB');
   } catch (error) {
-    console.error('Get received requests error:', error);
-    res.status(500).json({ error: 'Failed to get received requests' });
+    console.warn('Failed to create MongoStore, using MemoryStore:', error.message);
   }
+} else {
+  console.warn('No MONGODB_URI provided, using MemoryStore for sessions');
+}
+
+app.use(session(sessionConfig));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.use('/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/movies', movieRoutes);
+app.use('/api/friends', friendRoutes);
+
+app.get('/', (_req, res) => res.json({ 
+  message: 'SceneIt Backend API', 
+  status: 'running',
+  endpoints: {
+    health: '/health',
+    ping: '/api/ping',
+    status: '/api/status'
+  }
+}));
+
+app.get('/health', (_req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const dbStatusText = ['disconnected', 'connected', 'connecting', 'disconnecting'][dbStatus];
+  
+  // Return 200 OK even if DB is not connected yet - allows health check to pass
+  res.status(200).json({ 
+    status: 'ok',
+    database: dbStatusText,
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Get sent friend requests
-router.get('/requests/sent', requireAuth, async (req, res) => {
-  try {
-    const requests = await Friend.find({
-      userId: req.user._id,
-      status: 'pending',
-      requestedBy: req.user._id
-    })
-    .populate('friendId', 'displayName email profilePhoto')
-    .sort({ createdAt: -1 });
+app.get('/api/ping', (_req, res) => res.json({ ok: true }));
+app.get('/api/status', (_req, res) => res.json({ 
+  status: 'success',
+  message: 'Backend is connected and running!',
+  timestamp: new Date().toISOString(),
+  environment: process.env.NODE_ENV || 'production'
+}));
 
-    res.json({ 
-      requests: requests.map(r => ({
-        _id: r._id,
-        user: r.friendId,
-        createdAt: r.createdAt
-      }))
-    });
-  } catch (error) {
-    console.error('Get sent requests error:', error);
-    res.status(500).json({ error: 'Failed to get sent requests' });
-  }
+// Error handling middleware - must be AFTER all routes
+app.use((err, req, res, next) => {
+  console.error('Error middleware caught:', err);
+  console.error('Request path:', req.path);
+  console.error('Request method:', req.method);
+  res.status(err.status || 500).json({ 
+    error: err.message || 'Internal server error',
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
 });
 
-// Accept friend request
-router.post('/request/:requestId/accept', requireAuth, async (req, res) => {
-  try {
-    const { requestId } = req.params;
+const PORT = process.env.PORT || 3000;
 
-    const request = await Friend.findOne({
-      _id: requestId,
-      userId: req.user._id,
-      status: 'pending'
-    });
+// Log startup info
+console.log('Starting SceneIt Backend...');
+console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('Port:', PORT);
+console.log('Frontend URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
+console.log('Google OAuth configured:', !!process.env.AUTH_GOOGLE_ID);
+console.log('MongoDB URI configured:', !!process.env.MONGODB_URI);
 
-    if (!request) {
-      return res.status(404).json({ error: 'Request not found' });
-    }
-
-    // Update both directional records
-    await Friend.updateMany(
-      {
-        $or: [
-          { userId: req.user._id, friendId: request.friendId },
-          { userId: request.friendId, friendId: req.user._id }
-        ]
-      },
-      {
-        status: 'accepted',
-        updatedAt: new Date()
-      }
-    );
-
-    res.json({ message: 'Friend request accepted' });
-  } catch (error) {
-    console.error('Accept request error:', error);
-    res.status(500).json({ error: 'Failed to accept request' });
-  }
+app.listen(PORT, () => {
+  console.log(`API listening on ${PORT}`);
+  console.log('Server is ready!');
 });
 
-// Decline friend request
-router.post('/request/:requestId/decline', requireAuth, async (req, res) => {
-  try {
-    const { requestId } = req.params;
-
-    const request = await Friend.findOne({
-      _id: requestId,
-      userId: req.user._id,
-      status: 'pending'
-    });
-
-    if (!request) {
-      return res.status(404).json({ error: 'Request not found' });
-    }
-
-    // Update both records to declined
-    await Friend.updateMany(
-      {
-        $or: [
-          { userId: req.user._id, friendId: request.friendId },
-          { userId: request.friendId, friendId: req.user._id }
-        ]
-      },
-      {
-        status: 'declined',
-        updatedAt: new Date()
-      }
-    );
-
-    res.json({ message: 'Friend request declined' });
-  } catch (error) {
-    console.error('Decline request error:', error);
-    res.status(500).json({ error: 'Failed to decline request' });
-  }
-});
-
-// Cancel sent friend request
-router.delete('/request/:requestId/cancel', requireAuth, async (req, res) => {
-  try {
-    const { requestId } = req.params;
-
-    const request = await Friend.findOne({
-      _id: requestId,
-      userId: req.user._id,
-      requestedBy: req.user._id,
-      status: 'pending'
-    });
-
-    if (!request) {
-      return res.status(404).json({ error: 'Request not found' });
-    }
-
-    // Delete both directional records
-    await Friend.deleteMany({
-      $or: [
-        { userId: req.user._id, friendId: request.friendId },
-        { userId: request.friendId, friendId: req.user._id }
-      ],
-      status: 'pending',
-      requestedBy: req.user._id
-    });
-
-    res.json({ message: 'Friend request cancelled' });
-  } catch (error) {
-    console.error('Cancel request error:', error);
-    res.status(500).json({ error: 'Failed to cancel request' });
-  }
-});
-
-// Remove friend
-router.delete('/remove/:friendId', requireAuth, async (req, res) => {
-  try {
-    const { friendId } = req.params;
-
-    await Friend.deleteMany({
-      $or: [
-        { userId: req.user._id, friendId },
-        { userId: friendId, friendId: req.user._id }
-      ]
-    });
-
-    res.json({ message: 'Friend removed' });
-  } catch (error) {
-    console.error('Remove friend error:', error);
-    res.status(500).json({ error: 'Failed to remove friend' });
-  }
-});
-
-module.exports = router;
