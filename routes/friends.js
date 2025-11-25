@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const Friend = require('models/Friend');
-const User = require('models/User'); // Adjust path based on your structure
+const Friend = require('../models/Friend');
+const User = require('../models/User'); // Adjust path based on your structure
 
 // Middleware to ensure user is authenticated
 const requireAuth = (req, res, next) => {
