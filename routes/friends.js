@@ -31,7 +31,7 @@ router.get('/search', requireAuth, async (req, res) => {
         }
       ]
     })
-    .select('displayName email profilePhoto')
+    .select('displayName email photo')
     .limit(10);
 
     res.json({ users });
@@ -118,7 +118,7 @@ router.get('/list', requireAuth, async (req, res) => {
       userId: req.user._id,
       status: 'accepted'
     })
-    .populate('friendId', 'displayName email profilePhoto')
+    .populate('friendId', 'displayName email photo')
     .sort({ updatedAt: -1 });
 
     res.json({ friends: friends.map(f => f.friendId) });
@@ -136,7 +136,7 @@ router.get('/requests/received', requireAuth, async (req, res) => {
       status: 'pending',
       requestedBy: { $ne: req.user._id }
     })
-    .populate('friendId', 'displayName email profilePhoto')
+    .populate('friendId', 'displayName email photo')
     .sort({ createdAt: -1 });
 
     res.json({ 
@@ -160,7 +160,7 @@ router.get('/requests/sent', requireAuth, async (req, res) => {
       status: 'pending',
       requestedBy: req.user._id
     })
-    .populate('friendId', 'displayName email profilePhoto')
+    .populate('friendId', 'displayName email photo')
     .sort({ createdAt: -1 });
 
     res.json({ 
