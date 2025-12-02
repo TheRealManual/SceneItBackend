@@ -231,40 +231,39 @@ exports.getLikedMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch full movie details from Movie collection
-    const Movie = require('../models/Movie');
+    // Fetch full movie details from TMDB API
+    const MovieDatabaseService = require('../services/movieDatabase.service');
+    const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
     
     // Filter out NaN movieIds and convert to integers
     const validMovieIds = user.likedMovies
       .map(m => parseInt(m.movieId))
       .filter(id => !isNaN(id) && isFinite(id));
     
-    const moviesWithDetails = validMovieIds.length > 0
-      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
-      : [];
-    
-    console.log('=== GET LIKED MOVIES DEBUG ===');
+    console.log('=== GET LIKED MOVIES ===');
     console.log('Number of liked movies:', user.likedMovies.length);
-    console.log('Number of movies fetched from DB:', moviesWithDetails.length);
-    if (moviesWithDetails.length > 0) {
-      const firstMovie = moviesWithDetails[0];
-      console.log('Sample movie data:', {
-        title: firstMovie.title,
-        hasKeywords: !!firstMovie.keywords && firstMovie.keywords.length > 0,
-        keywordsCount: firstMovie.keywords?.length || 0,
-        hasLanguage: !!firstMovie.language,
-        language: firstMovie.language,
-        hasDirector: !!firstMovie.director,
-        director: firstMovie.director,
-        hasCast: !!firstMovie.cast && firstMovie.cast.length > 0,
-        castCount: firstMovie.cast?.length || 0
-      });
-    }
+    console.log('Valid movie IDs:', validMovieIds.length);
+    
+    // Fetch all movie details in parallel
+    const moviesWithDetails = await Promise.all(
+      validMovieIds.map(async (tmdbId) => {
+        try {
+          return await movieDb.getMovieById(tmdbId);
+        } catch (error) {
+          console.error(`Failed to fetch movie ${tmdbId}:`, error.message);
+          return null;
+        }
+      })
+    );
+    
+    // Filter out null results
+    const validMovies = moviesWithDetails.filter(m => m !== null);
+    console.log('Movies fetched from TMDB:', validMovies.length);
     
     // Create a map for quick lookup
-    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    const movieDetailsMap = new Map(validMovies.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details, filtering out NaN IDs
+    // Combine user data with full movie details
     const likedMoviesWithDetails = user.likedMovies
       .filter(userMovie => {
         const id = parseInt(userMovie.movieId);
@@ -272,45 +271,36 @@ exports.getLikedMovies = async (req, res) => {
       })
       .map(userMovie => {
         const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
-      if (movieDetails) {
-        // Calculate average rating
-        const averageRating = movieDetails.ratingCount > 0 
-          ? Math.round((movieDetails.totalRating / movieDetails.ratingCount) * 2) / 2 
-          : 0;
-        
+        if (movieDetails) {
+          return {
+            ...movieDetails,
+            likedAt: userMovie.likedAt
+          };
+        }
+        // Fallback to user data if movie not found
         return {
-          tmdbId: movieDetails.tmdbId,
-          title: movieDetails.title,
-          posterPath: movieDetails.posterPath,
-          overview: movieDetails.overview,
-          releaseDate: movieDetails.releaseDate,
-          genres: movieDetails.genres,
-          voteAverage: movieDetails.voteAverage,
-          ageRating: movieDetails.ageRating,
-          runtime: movieDetails.runtime,
-          keywords: movieDetails.keywords,
-          language: movieDetails.language,
-          director: movieDetails.director,
-          cast: movieDetails.cast,
-          averageRating: averageRating,
-          ratingCount: movieDetails.ratingCount,
+          tmdbId: parseInt(userMovie.movieId),
+          title: userMovie.title,
+          posterPath: userMovie.posterPath,
           likedAt: userMovie.likedAt
         };
-      }
-      // Fallback to user data if movie not found in database
-      return {
-        tmdbId: parseInt(userMovie.movieId),
-        title: userMovie.title,
-        posterPath: userMovie.posterPath,
-        likedAt: userMovie.likedAt
-      };
-    }).filter(m => m !== null);
+      })
+      .filter(m => m !== null);
 
     res.json({
       likedMovies: likedMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting liked movies:', error);
+    
+    // Check if it's a TMDB API error
+    if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ 
+        error: 'Movie database temporarily unavailable. Please try again.',
+        code: 'TMDB_UNAVAILABLE'
+      });
+    }
+    
     res.status(500).json({ error: 'Failed to get liked movies' });
   }
 };
@@ -327,22 +317,34 @@ exports.getDislikedMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch full movie details from Movie collection
-    const Movie = require('../models/Movie');
+    // Fetch full movie details from TMDB API
+    const MovieDatabaseService = require('../services/movieDatabase.service');
+    const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
     
     // Filter out NaN movieIds and convert to integers
     const validMovieIds = user.dislikedMovies
       .map(m => parseInt(m.movieId))
       .filter(id => !isNaN(id) && isFinite(id));
     
-    const moviesWithDetails = validMovieIds.length > 0
-      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
-      : [];
+    // Fetch all movie details in parallel
+    const moviesWithDetails = await Promise.all(
+      validMovieIds.map(async (tmdbId) => {
+        try {
+          return await movieDb.getMovieById(tmdbId);
+        } catch (error) {
+          console.error(`Failed to fetch movie ${tmdbId}:`, error.message);
+          return null;
+        }
+      })
+    );
+    
+    // Filter out null results
+    const validMovies = moviesWithDetails.filter(m => m !== null);
     
     // Create a map for quick lookup
-    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    const movieDetailsMap = new Map(validMovies.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details, filtering out NaN IDs
+    // Combine user data with full movie details
     const dislikedMoviesWithDetails = user.dislikedMovies
       .filter(userMovie => {
         const id = parseInt(userMovie.movieId);
@@ -350,45 +352,36 @@ exports.getDislikedMovies = async (req, res) => {
       })
       .map(userMovie => {
         const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
-      if (movieDetails) {
-        // Calculate average rating
-        const averageRating = movieDetails.ratingCount > 0 
-          ? Math.round((movieDetails.totalRating / movieDetails.ratingCount) * 2) / 2 
-          : 0;
-        
+        if (movieDetails) {
+          return {
+            ...movieDetails,
+            dislikedAt: userMovie.dislikedAt
+          };
+        }
+        // Fallback to user data if movie not found
         return {
-          tmdbId: movieDetails.tmdbId,
-          title: movieDetails.title,
-          posterPath: movieDetails.posterPath,
-          overview: movieDetails.overview,
-          releaseDate: movieDetails.releaseDate,
-          genres: movieDetails.genres,
-          voteAverage: movieDetails.voteAverage,
-          ageRating: movieDetails.ageRating,
-          runtime: movieDetails.runtime,
-          keywords: movieDetails.keywords,
-          language: movieDetails.language,
-          director: movieDetails.director,
-          cast: movieDetails.cast,
-          averageRating: averageRating,
-          ratingCount: movieDetails.ratingCount,
+          tmdbId: parseInt(userMovie.movieId),
+          title: userMovie.title,
+          posterPath: userMovie.posterPath,
           dislikedAt: userMovie.dislikedAt
         };
-      }
-      // Fallback to user data if movie not found in database
-      return {
-        tmdbId: parseInt(userMovie.movieId),
-        title: userMovie.title,
-        posterPath: userMovie.posterPath,
-        dislikedAt: userMovie.dislikedAt
-      };
-    }).filter(m => m !== null);
+      })
+      .filter(m => m !== null);
 
     res.json({
       dislikedMovies: dislikedMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting disliked movies:', error);
+    
+    // Check if it's a TMDB API error
+    if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ 
+        error: 'Movie database temporarily unavailable. Please try again.',
+        code: 'TMDB_UNAVAILABLE'
+      });
+    }
+    
     res.status(500).json({ error: 'Failed to get disliked movies' });
   }
 };
@@ -482,26 +475,38 @@ exports.getFavoriteMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch full movie details from Movie collection
-    const Movie = require('../models/Movie');
+    // Fetch full movie details from TMDB API
+    const MovieDatabaseService = require('../services/movieDatabase.service');
+    const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
     
     // Filter out NaN movieIds and convert to integers
     const validMovieIds = user.favoriteMovies
       .map(m => parseInt(m.movieId))
       .filter(id => !isNaN(id) && isFinite(id));
     
-    console.log('=== GET FAVORITE MOVIES DEBUG ===');
+    console.log('=== GET FAVORITE MOVIES ===');
     console.log('Total favorite movies:', user.favoriteMovies.length);
     console.log('Valid movie IDs:', validMovieIds.length);
     
-    const moviesWithDetails = validMovieIds.length > 0 
-      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
-      : [];
+    // Fetch all movie details in parallel
+    const moviesWithDetails = await Promise.all(
+      validMovieIds.map(async (tmdbId) => {
+        try {
+          return await movieDb.getMovieById(tmdbId);
+        } catch (error) {
+          console.error(`Failed to fetch movie ${tmdbId}:`, error.message);
+          return null;
+        }
+      })
+    );
+    
+    // Filter out null results
+    const validMovies = moviesWithDetails.filter(m => m !== null);
     
     // Create a map for quick lookup
-    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    const movieDetailsMap = new Map(validMovies.map(m => [m.tmdbId, m]));
     
-    // Combine user data with full movie details, filtering out NaN IDs
+    // Combine user data with full movie details
     const favoriteMoviesWithDetails = user.favoriteMovies
       .filter(userMovie => {
         const id = parseInt(userMovie.movieId);
@@ -509,45 +514,36 @@ exports.getFavoriteMovies = async (req, res) => {
       })
       .map(userMovie => {
         const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
-      if (movieDetails) {
-        // Calculate average rating
-        const averageRating = movieDetails.ratingCount > 0 
-          ? Math.round((movieDetails.totalRating / movieDetails.ratingCount) * 2) / 2 
-          : 0;
-        
+        if (movieDetails) {
+          return {
+            ...movieDetails,
+            favoritedAt: userMovie.favoritedAt
+          };
+        }
+        // Fallback to user data if movie not found
         return {
-          tmdbId: movieDetails.tmdbId,
-          title: movieDetails.title,
-          posterPath: movieDetails.posterPath,
-          overview: movieDetails.overview,
-          releaseDate: movieDetails.releaseDate,
-          genres: movieDetails.genres,
-          voteAverage: movieDetails.voteAverage,
-          ageRating: movieDetails.ageRating,
-          runtime: movieDetails.runtime,
-          keywords: movieDetails.keywords,
-          language: movieDetails.language,
-          director: movieDetails.director,
-          cast: movieDetails.cast,
-          averageRating: averageRating,
-          ratingCount: movieDetails.ratingCount,
+          tmdbId: parseInt(userMovie.movieId),
+          title: userMovie.title,
+          posterPath: userMovie.posterPath,
           favoritedAt: userMovie.favoritedAt
         };
-      }
-      // Fallback to user data if movie not found in database
-      return {
-        tmdbId: parseInt(userMovie.movieId),
-        title: userMovie.title,
-        posterPath: userMovie.posterPath,
-        favoritedAt: userMovie.favoritedAt
-      };
-    }).filter(m => m !== null);
+      })
+      .filter(m => m !== null);
 
     res.json({
       favoriteMovies: favoriteMoviesWithDetails
     });
   } catch (error) {
     console.error('Error getting favorite movies:', error);
+    
+    // Check if it's a TMDB API error
+    if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ 
+        error: 'Movie database temporarily unavailable. Please try again.',
+        code: 'TMDB_UNAVAILABLE'
+      });
+    }
+    
     res.status(500).json({ error: 'Failed to get favorite movies' });
   }
 };
@@ -787,16 +783,6 @@ exports.watchMovie = async (req, res) => {
 
     await user.save();
 
-    // Update movie's rating statistics
-    const Movie = require('../models/Movie');
-    const movie = await Movie.findOne({ tmdbId: parsedId });
-    
-    if (movie) {
-      movie.totalRating = (movie.totalRating || 0) + rating;
-      movie.ratingCount = (movie.ratingCount || 0) + 1;
-      await movie.save();
-    }
-
     res.json({
       message: 'Movie marked as watched successfully',
       watchedMovies: user.watchedMovies
@@ -832,25 +818,9 @@ exports.unwatchMovie = async (req, res) => {
       return res.status(404).json({ error: 'Movie not found in watched list' });
     }
 
-    const userRating = watchedMovie.rating;
-
     // Remove from user's watched movies
     user.watchedMovies = user.watchedMovies.filter(m => m.movieId !== movieId);
     await user.save();
-
-    // Update movie's rating statistics
-    const Movie = require('../models/Movie');
-    const parsedId = parseInt(movieId);
-    
-    if (!isNaN(parsedId) && isFinite(parsedId)) {
-      const movie = await Movie.findOne({ tmdbId: parsedId });
-      
-      if (movie && movie.ratingCount > 0) {
-        movie.totalRating = Math.max(0, (movie.totalRating || 0) - userRating);
-        movie.ratingCount = Math.max(0, (movie.ratingCount || 0) - 1);
-        await movie.save();
-      }
-    }
 
     res.json({
       message: 'Movie removed from watched list',
@@ -897,25 +867,9 @@ exports.updateWatchedRating = async (req, res) => {
       return res.status(404).json({ error: 'Movie not found in watched list' });
     }
 
-    const oldRating = watchedMovie.rating;
-
     // Update the rating
     watchedMovie.rating = rating;
     await user.save();
-
-    // Update movie's rating statistics
-    const Movie = require('../models/Movie');
-    const parsedId = parseInt(movieId);
-    
-    if (!isNaN(parsedId) && isFinite(parsedId)) {
-      const movie = await Movie.findOne({ tmdbId: parsedId });
-      
-      if (movie) {
-        // Remove old rating and add new rating
-        movie.totalRating = (movie.totalRating || 0) - oldRating + rating;
-        await movie.save();
-      }
-    }
 
     res.json({
       message: 'Rating updated successfully',
@@ -939,20 +893,32 @@ exports.getWatchedMovies = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Fetch full movie details from Movie collection
-    const Movie = require('../models/Movie');
+    // Fetch full movie details from TMDB API
+    const MovieDatabaseService = require('../services/movieDatabase.service');
+    const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
     
     // Filter out NaN movieIds and convert to integers
     const validMovieIds = user.watchedMovies
       .map(m => parseInt(m.movieId))
       .filter(id => !isNaN(id) && isFinite(id));
     
-    const moviesWithDetails = validMovieIds.length > 0
-      ? await Movie.find({ tmdbId: { $in: validMovieIds } })
-      : [];
+    // Fetch all movie details in parallel
+    const moviesWithDetails = await Promise.all(
+      validMovieIds.map(async (tmdbId) => {
+        try {
+          return await movieDb.getMovieById(tmdbId);
+        } catch (error) {
+          console.error(`Failed to fetch movie ${tmdbId}:`, error.message);
+          return null;
+        }
+      })
+    );
+    
+    // Filter out null results
+    const validMovies = moviesWithDetails.filter(m => m !== null);
     
     // Create a map for quick lookup
-    const movieDetailsMap = new Map(moviesWithDetails.map(m => [m.tmdbId, m]));
+    const movieDetailsMap = new Map(validMovies.map(m => [m.tmdbId, m]));
     
     // Combine user data with full movie details
     const watchedMoviesWithDetails = user.watchedMovies
@@ -964,33 +930,14 @@ exports.getWatchedMovies = async (req, res) => {
         const movieDetails = movieDetailsMap.get(parseInt(userMovie.movieId));
         
         if (movieDetails) {
-          // Calculate average rating
-          const averageRating = movieDetails.ratingCount > 0 
-            ? movieDetails.totalRating / movieDetails.ratingCount 
-            : 0;
-          
           return {
-            tmdbId: movieDetails.tmdbId,
-            title: movieDetails.title,
-            posterPath: movieDetails.posterPath,
-            overview: movieDetails.overview,
-            releaseDate: movieDetails.releaseDate,
-            genres: movieDetails.genres,
-            voteAverage: movieDetails.voteAverage,
-            ageRating: movieDetails.ageRating,
-            runtime: movieDetails.runtime,
-            keywords: movieDetails.keywords,
-            language: movieDetails.language,
-            director: movieDetails.director,
-            cast: movieDetails.cast,
+            ...movieDetails,
             userRating: userMovie.rating,
-            averageRating: Math.round(averageRating * 2) / 2, // Round to nearest 0.5
-            ratingCount: movieDetails.ratingCount,
             watchedAt: userMovie.watchedAt
           };
         }
         
-        // Fallback to user data if movie not found in database
+        // Fallback to user data if movie not found
         return {
           tmdbId: parseInt(userMovie.movieId),
           userRating: userMovie.rating,
@@ -1004,6 +951,15 @@ exports.getWatchedMovies = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting watched movies:', error);
+    
+    // Check if it's a TMDB API error
+    if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      return res.status(503).json({ 
+        error: 'Movie database temporarily unavailable. Please try again.',
+        code: 'TMDB_UNAVAILABLE'
+      });
+    }
+    
     res.status(500).json({ error: 'Failed to get watched movies' });
   }
 };

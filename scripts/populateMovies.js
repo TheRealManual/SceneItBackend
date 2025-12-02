@@ -1,3 +1,19 @@
+// ===================================================================
+// DEPRECATED: This script is no longer used
+// ===================================================================
+// As of December 2025, SceneIt now uses TMDB API directly instead of
+// caching movies in MongoDB. This script was used to pre-populate
+// the MongoDB Movie collection with data from TMDB.
+//
+// The new architecture:
+// - movieDatabase.service.js fetches movies directly from TMDB API
+// - movieSearch.service.js uses TMDB /discover/movie for filtering
+// - Movie details are cached in-memory using node-cache
+// - MongoDB only stores user data (preferences, liked/disliked movies, etc.)
+//
+// This file is kept for historical reference only.
+// ===================================================================
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 const MovieDatabaseService = require('../services/movieDatabase.service');

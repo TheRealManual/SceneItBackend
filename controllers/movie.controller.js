@@ -1,4 +1,5 @@
 const MovieSearchService = require('../services/movieSearch.service');
+const MovieDatabaseService = require('../services/movieDatabase.service');
 
 const movieController = {
   // Search movies based on user preferences
@@ -9,7 +10,10 @@ const movieController = {
       console.log('🎬 Movie search request received');
       console.log('User:', req.user?.displayName || 'Guest');
       
-      const searchService = new MovieSearchService(process.env.GEMINI_API_KEY);
+      const searchService = new MovieSearchService(
+        process.env.GEMINI_API_KEY,
+        process.env.TMDB_ACCESS_TOKEN
+      );
       const movies = await searchService.searchMovies(preferences, req.user);
       
       res.json({
@@ -20,6 +24,25 @@ const movieController = {
       
     } catch (error) {
       console.error('Movie search error:', error);
+      
+      // Check if it's a Gemini AI error
+      if (error.code === 'GEMINI_UNAVAILABLE') {
+        return res.status(503).json({ 
+          success: false,
+          error: 'AI service temporarily unavailable. Please try again.',
+          code: 'GEMINI_UNAVAILABLE'
+        });
+      }
+      
+      // Check if it's a TMDB API error
+      if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        return res.status(503).json({ 
+          success: false,
+          error: 'Movie database temporarily unavailable. Please try again.',
+          code: 'TMDB_UNAVAILABLE'
+        });
+      }
+      
       res.status(500).json({ 
         success: false,
         error: 'Failed to search movies',
@@ -32,9 +55,9 @@ const movieController = {
   async getMovieById(req, res) {
     try {
       const { id } = req.params;
-      const Movie = require('../models/Movie');
+      const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
       
-      const movie = await Movie.findOne({ tmdbId: parseInt(id) });
+      const movie = await movieDb.getMovieById(parseInt(id));
       
       if (!movie) {
         return res.status(404).json({
@@ -50,6 +73,16 @@ const movieController = {
       
     } catch (error) {
       console.error('Get movie error:', error);
+      
+      // Check if it's a TMDB API error
+      if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        return res.status(503).json({ 
+          success: false,
+          error: 'Movie database temporarily unavailable. Please try again.',
+          code: 'TMDB_UNAVAILABLE'
+        });
+      }
+      
       res.status(500).json({
         success: false,
         error: 'Failed to get movie',
@@ -62,46 +95,47 @@ const movieController = {
   async getRandomMovies(req, res) {
     try {
       const count = parseInt(req.query.count) || 20;
-      const Movie = require('../models/Movie');
+      const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
       
       console.log(`🎲 Fetching ${count} random movies for carousel`);
       
-      // Build match query
-      const matchQuery = { 
-        posterPath: { $exists: true, $ne: null },
-        voteAverage: { $gte: 5.0 } // Only decent rated movies
-      };
-
-      // If user is authenticated, exclude already-rated movies
+      const movies = await movieDb.getRandomMovies(count);
+      
+      // Filter out already-rated movies if user is authenticated
+      let filteredMovies = movies;
       if (req.user) {
-        const ratedMovieIds = [
+        const ratedMovieIds = new Set([
           ...req.user.likedMovies.map(m => m.movieId),
           ...req.user.dislikedMovies.map(m => m.movieId)
-        ];
+        ].map(id => parseInt(id)));
         
-        if (ratedMovieIds.length > 0) {
-          matchQuery.tmdbId = { $nin: ratedMovieIds.map(id => parseInt(id)) };
-          console.log(`🚫 Filtering out ${ratedMovieIds.length} already-rated movies`);
+        filteredMovies = movies.filter(m => !ratedMovieIds.has(m.tmdbId));
+        
+        if (filteredMovies.length < count && ratedMovieIds.size > 0) {
+          console.log(`🚫 Filtered out ${movies.length - filteredMovies.length} already-rated movies`);
         }
       }
       
-      // Use MongoDB aggregation to get random movies with better distribution
-      const movies = await Movie.aggregate([
-        { $match: matchQuery },
-        { $sample: { size: count * 2 } }, // Get more than needed
-        { $limit: count } // Then limit to requested amount
-      ]);
-      
-      console.log(`✅ Found ${movies.length} random movies`);
+      console.log(`✅ Returning ${filteredMovies.length} random movies`);
       
       res.json({
         success: true,
-        count: movies.length,
-        movies: movies
+        count: filteredMovies.length,
+        movies: filteredMovies
       });
       
     } catch (error) {
       console.error('Get random movies error:', error);
+      
+      // Check if it's a TMDB API error
+      if (error.response?.status >= 500 || error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        return res.status(503).json({ 
+          success: false,
+          error: 'Movie database temporarily unavailable. Please try again.',
+          code: 'TMDB_UNAVAILABLE'
+        });
+      }
+      
       res.status(500).json({
         success: false,
         error: 'Failed to get random movies',

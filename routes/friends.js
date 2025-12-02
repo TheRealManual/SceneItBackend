@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Friend = require('../models/Friend');
-const User = require('../models/User'); // Adjust path based on your structure
+const User = require('../models/User');
+const { 
+  sendFriendRequestNotification, 
+  sendFriendRequestAcceptedNotification, 
+  sendFriendRequestDeclinedNotification 
+} = require('../services/emailNotification.service');
 
 // Middleware to ensure user is authenticated
 const requireAuth = (req, res, next) => {
@@ -104,6 +109,12 @@ router.post('/request', requireAuth, async (req, res) => {
       }
     ]);
 
+    // Send email notification to the recipient
+    const sender = await User.findById(userId);
+    sendFriendRequestNotification(sender, friend).catch(err => 
+      console.error('Failed to send friend request email:', err)
+    );
+
     res.json({ message: 'Friend request sent' });
   } catch (error) {
     console.error('Friend request error:', error);
@@ -205,6 +216,13 @@ router.post('/request/:requestId/accept', requireAuth, async (req, res) => {
       }
     );
 
+    // Send email notification to the requester
+    const accepter = await User.findById(req.user._id);
+    const requester = await User.findById(request.friendId);
+    sendFriendRequestAcceptedNotification(accepter, requester).catch(err =>
+      console.error('Failed to send friend request accepted email:', err)
+    );
+
     res.json({ message: 'Friend request accepted' });
   } catch (error) {
     console.error('Accept request error:', error);
@@ -239,6 +257,13 @@ router.post('/request/:requestId/decline', requireAuth, async (req, res) => {
         status: 'declined',
         updatedAt: new Date()
       }
+    );
+
+    // Send email notification to the requester
+    const decliner = await User.findById(req.user._id);
+    const requester = await User.findById(request.friendId);
+    sendFriendRequestDeclinedNotification(decliner, requester).catch(err =>
+      console.error('Failed to send friend request declined email:', err)
     );
 
     res.json({ message: 'Friend request declined' });

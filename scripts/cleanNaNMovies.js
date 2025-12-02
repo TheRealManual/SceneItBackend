@@ -1,5 +1,20 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
+// ===================================================================
+// DEPRECATED: This script is no longer needed
+// ===================================================================
+// As of December 2025, SceneIt no longer stores movies in MongoDB.
+// This script was used to clean up invalid "NaN" movie IDs from
+// user collections when movies were stored in the database.
+//
+// The new architecture:
+// - Movies are fetched directly from TMDB API
+// - Only user interaction data is stored in MongoDB
+// - Movie IDs are validated before being saved to user collections
+//
+// This file is kept for historical reference only.
+// ===================================================================
+
 require('dotenv').config();
 
 const cleanNaNMovies = async () => {

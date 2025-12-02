@@ -1,45 +1,34 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const Movie = require('../models/Movie');
+const MovieDatabaseService = require('./movieDatabase.service');
 
 class MovieSearchService {
-  constructor(geminiApiKey) {
+  constructor(geminiApiKey, tmdbAccessToken) {
     this.genAI = new GoogleGenerativeAI(geminiApiKey);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    this.movieDb = new MovieDatabaseService(tmdbAccessToken);
   }
 
   /**
-   * Step 1: Filter movies using database fields
+   * Step 1: Filter movies using TMDB API (ONLY hard criteria - let AI handle subjective preferences)
    */
-  async filterMoviesByBasicCriteria(preferences) {
-    const query = {};
+  async filterMoviesByBasicCriteria(preferences, user = null) {
+    const params = {
+      sort_by: 'popularity.desc',
+      page: 1
+    };
 
+    // HARD FILTERS (objective criteria that TMDB can filter efficiently)
+    
     // Release year filter
     if (preferences.yearRange) {
-      query.releaseDate = {
-        $gte: new Date(`${preferences.yearRange[0]}-01-01`),
-        $lte: new Date(`${preferences.yearRange[1]}-12-31`)
-      };
-    }
-
-    // Runtime filter
-    if (preferences.runtimeRange) {
-      query.runtime = {
-        $gte: preferences.runtimeRange[0],
-        $lte: preferences.runtimeRange[1]
-      };
+      params['primary_release_date.gte'] = `${preferences.yearRange[0]}-01-01`;
+      params['primary_release_date.lte'] = `${preferences.yearRange[1]}-12-31`;
     }
 
     // IMDB rating filter (voteAverage in TMDB is 0-10 scale)
     if (preferences.ratingRange) {
-      query.voteAverage = {
-        $gte: preferences.ratingRange[0],
-        $lte: preferences.ratingRange[1]
-      };
-    }
-
-    // Age rating filter
-    if (preferences.ageRating && preferences.ageRating !== 'Any') {
-      query.ageRating = preferences.ageRating;
+      params['vote_average.gte'] = preferences.ratingRange[0];
+      params['vote_average.lte'] = preferences.ratingRange[1];
     }
 
     // Language filter
@@ -55,54 +44,92 @@ class MovieSearchService {
         'Mandarin': 'zh',
         'Hindi': 'hi'
       };
-      query.language = languageCodes[preferences.language] || 'en';
+      params.with_original_language = languageCodes[preferences.language] || 'en';
     }
 
-    // Genre filter - match movies that have ANY of the user's preferred genres (rated 6+)
-    if (preferences.genres && Object.keys(preferences.genres).length > 0) {
-      const preferredGenres = Object.entries(preferences.genres)
-        .filter(([_, rating]) => rating >= 6) // Only include genres rated 6+
-        .map(([genre, _]) => genre);
+    // NOTE: Genre preferences are NO LONGER filtered here - AI will handle genre matching
+    // This gives AI access to ALL movies in the year/rating/language range for intelligent ranking
 
-      if (preferredGenres.length > 0) {
-        query['genres.name'] = { $in: preferredGenres };
+    console.log('📊 TMDB discover params (hard filters only):', JSON.stringify(params, null, 2));
+
+    try {
+      // Fetch multiple pages from TMDB to get a diverse pool of movies (pages 1-10 = ~200 movies)
+      console.log('📥 Fetching movies from TMDB (10 pages for maximum diversity)...');
+      const allMovies = [];
+      
+      for (let page = 1; page <= 10; page++) {
+        const pageParams = { ...params, page };
+        const response = await this.movieDb.discoverMovies(pageParams);
+        allMovies.push(...(response.results || []));
       }
+      
+      console.log(`✅ TMDB returned ${allMovies.length} movies from 10 pages`);
+
+      // Fetch full details for all movies including certifications
+      console.log('📥 Fetching full details for all movies...');
+      const moviesWithDetails = await Promise.all(
+        allMovies.map(async (movie) => {
+          try {
+            const details = await this.movieDb.getMovieById(movie.id);
+            return details;
+          } catch (error) {
+            console.error(`Failed to fetch details for movie ${movie.id}:`, error.message);
+            return null;
+          }
+        })
+      );
+
+      // Filter out null results and apply age rating filter
+      let filteredMovies = moviesWithDetails.filter(m => m !== null);
+
+      // Age rating filter (applied after fetching certifications)
+      if (preferences.ageRating && preferences.ageRating !== 'Any') {
+        const beforeCount = filteredMovies.length;
+        filteredMovies = filteredMovies.filter(m => m.ageRating === preferences.ageRating);
+        console.log(`🔒 Age rating filter (${preferences.ageRating}): ${beforeCount} → ${filteredMovies.length} movies`);
+      }
+
+      // Runtime filter (TMDB discover API doesn't support runtime filter well, so we filter client-side)
+      if (preferences.runtimeRange) {
+        const beforeCount = filteredMovies.length;
+        filteredMovies = filteredMovies.filter(m => 
+          m.runtime >= preferences.runtimeRange[0] && m.runtime <= preferences.runtimeRange[1]
+        );
+        console.log(`⏱️ Runtime filter (${preferences.runtimeRange[0]}-${preferences.runtimeRange[1]} min): ${beforeCount} → ${filteredMovies.length} movies`);
+      }
+
+      // Filter out already rated movies BEFORE limiting to top 100
+      // This ensures AI always gets a good pool of unrated movies to analyze
+      if (user) {
+        const beforeCount = filteredMovies.length;
+        const ratedMovieIds = new Set([
+          ...user.likedMovies.map(m => m.movieId),
+          ...user.dislikedMovies.map(m => m.movieId)
+        ]);
+        
+        filteredMovies = filteredMovies.filter(movie => 
+          !ratedMovieIds.has(movie.tmdbId.toString())
+        );
+        
+        const removedCount = beforeCount - filteredMovies.length;
+        if (removedCount > 0) {
+          console.log(`🚫 Filtered out ${removedCount} already-rated movies: ${beforeCount} → ${filteredMovies.length}`);
+        }
+      }
+
+      // Take top 150 by popularity (after filtering out rated movies)
+      // Give AI more movies to choose from for better matching
+      const top150 = filteredMovies
+        .sort((a, b) => b.popularity - a.popularity)
+        .slice(0, 150);
+
+      console.log(`✅ Returning ${top150.length} movies for AI analysis`);
+      
+      return top150;
+    } catch (error) {
+      console.error('TMDB API Error:', error.message);
+      throw error;
     }
-
-    console.log('📊 Database query:', JSON.stringify(query, null, 2));
-
-    // Determine how many movies to fetch based on whether we're using AI
-    const hasSubjectivePrefs = 
-      (preferences.description && preferences.description.trim().length > 0) ||
-      preferences.moodIntensity !== 5 ||
-      preferences.humorLevel !== 5 ||
-      preferences.violenceLevel !== 5 ||
-      preferences.romanceLevel !== 5 ||
-      preferences.complexityLevel !== 5;
-
-    // If using AI, fetch fewer movies to reduce tokens (50-75 movies is enough for good variety)
-    // If no AI, fetch more for better selection
-    const fetchLimit = hasSubjectivePrefs ? 200 : 300;
-    const aiLimit = hasSubjectivePrefs ? 60 : 100;
-
-    console.log(`🎯 Strategy: ${hasSubjectivePrefs ? 'Using AI analysis' : 'No AI (default sort)'}`);
-    console.log(`📊 Fetching ${fetchLimit} movies, ${hasSubjectivePrefs ? `analyzing ${aiLimit} with AI` : 'sorting by popularity'}`);
-
-    // Fetch filtered movies with some randomization to avoid always getting the same results
-    const allMovies = await Movie.find(query)
-      .sort({ popularity: -1, voteAverage: -1 }) // Sort by popularity and rating
-      .limit(fetchLimit)
-      .lean();
-
-    // Shuffle the array to add randomization while keeping quality movies
-    const shuffled = allMovies.sort(() => Math.random() - 0.5);
-    
-    // Take only what we need for AI processing (fewer = less tokens)
-    const movies = shuffled.slice(0, aiLimit);
-
-    console.log(`✅ Returning ${movies.length} movies for ${hasSubjectivePrefs ? 'AI analysis' : 'direct use'}`);
-
-    return movies;
   }
 
   /**
@@ -145,21 +172,32 @@ class MovieSearchService {
       
       console.log(`📊 AI ranked ${rankedMovies.length} movies`);
       
-      // Map ranked movies back to full movie objects
+      // If AI returned empty array (no good matches), return empty array
+      if (!rankedMovies || rankedMovies.length === 0) {
+        console.log('⚠️ AI found no good matches (all scores < 0.6), returning empty results');
+        return [];
+      }
+      
+      // Map ranked movies back to full movie objects, filtering out invalid IDs
       const movieMap = new Map(movies.map(m => [m.tmdbId, m]));
-      return rankedMovies
+      const validMovies = rankedMovies
+        .filter(item => item.tmdbId && item.tmdbId > 0 && movieMap.has(item.tmdbId))
         .map(item => {
           const movie = movieMap.get(item.tmdbId);
-          if (movie) {
-            return {
-              ...movie,
-              matchScore: item.score,
-              matchReason: item.reason
-            };
-          }
-          return null;
-        })
-        .filter(m => m !== null);
+          return {
+            ...movie,
+            matchScore: item.score,
+            matchReason: item.reason
+          };
+        });
+      
+      // If all returned IDs were invalid (placeholders), return empty array
+      if (validMovies.length === 0) {
+        console.log('⚠️ AI returned invalid movie IDs, returning empty results');
+        return [];
+      }
+      
+      return validMovies;
 
     } catch (error) {
       console.error('\n' + '='.repeat(80));
@@ -168,15 +206,21 @@ class MovieSearchService {
       console.error(error);
       console.error('='.repeat(80) + '\n');
       
-      // Fallback: return top 10 movies sorted by popularity
-      return movies
-        .map(m => ({ 
-          ...m, 
-          matchScore: m.popularity / 1000,
-          matchReason: 'Sorted by popularity (AI analysis failed)'
-        }))
-        .sort((a, b) => b.matchScore - a.matchScore)
-        .slice(0, 10); // Limit to 10 movies even in fallback
+      // Check if it's a network/API error that should be shown to user
+      if (error.message?.includes('fetch') || 
+          error.message?.includes('network') || 
+          error.code === 'ECONNREFUSED' || 
+          error.code === 'ETIMEDOUT' ||
+          error.status >= 500) {
+        // Throw error to be handled by controller
+        const geminiError = new Error('AI service temporarily unavailable');
+        geminiError.code = 'GEMINI_UNAVAILABLE';
+        throw geminiError;
+      }
+      
+      // For parsing errors or other non-critical errors, return empty array
+      console.log('⚠️  Returning empty results (AI analysis failed)');
+      return [];
     }
   }
 
@@ -186,7 +230,7 @@ class MovieSearchService {
   buildAIPrompt(movies, preferences) {
     // Only send essential data for subjective analysis - minimize tokens
     const movieSummaries = movies.map(m => ({
-      id: m.tmdbId,
+      tmdbId: m.tmdbId,
       title: m.title,
       year: m.releaseDate ? new Date(m.releaseDate).getFullYear() : 'N/A',
       // Truncate overview to first 200 chars to save tokens (enough for AI to understand)
@@ -197,55 +241,83 @@ class MovieSearchService {
       rating: m.voteAverage || 0
     }));
 
-    // Build a concise prompt focusing only on subjective criteria
-    const subjectivePrefs = [];
+    // Build a comprehensive prompt with ALL subjective preferences
+    const userPreferences = [];
     
+    // User description (highest priority)
     if (preferences.description && preferences.description.trim()) {
-      subjectivePrefs.push(`User wants: "${preferences.description}"`);
+      userPreferences.push(`Description: "${preferences.description}"`);
     }
     
-    // Only include preferences that deviate from neutral (5)
+    // Genre preferences (all of them, not just neutral ones)
+    if (preferences.genres && Object.keys(preferences.genres).length > 0) {
+      const genrePrefs = Object.entries(preferences.genres)
+        .filter(([_, rating]) => rating !== 5) // Include any non-neutral preference
+        .sort(([_, a], [__, b]) => b - a) // Sort by preference strength
+        .map(([genre, rating]) => {
+          if (rating > 5) return `${genre} (prefer ${rating}/10)`;
+          if (rating < 5) return `${genre} (avoid ${rating}/10)`;
+        })
+        .filter(Boolean);
+      
+      if (genrePrefs.length > 0) {
+        userPreferences.push(`Genres: ${genrePrefs.join(', ')}`);
+      }
+    }
+    
+    // Mood/style sliders
     if (preferences.moodIntensity !== 5) {
       const mood = preferences.moodIntensity > 5 ? 'intense/dramatic' : 'calm/peaceful';
-      subjectivePrefs.push(`Mood: ${mood} (${preferences.moodIntensity}/10)`);
+      userPreferences.push(`Mood: ${mood} (${preferences.moodIntensity}/10)`);
     }
     
     if (preferences.humorLevel !== 5) {
       const humor = preferences.humorLevel > 5 ? 'comedic/funny' : 'serious/dramatic';
-      subjectivePrefs.push(`Humor: ${humor} (${preferences.humorLevel}/10)`);
+      userPreferences.push(`Humor: ${humor} (${preferences.humorLevel}/10)`);
     }
     
     if (preferences.violenceLevel !== 5) {
       const violence = preferences.violenceLevel > 5 ? 'action-heavy' : 'minimal violence';
-      subjectivePrefs.push(`Violence: ${violence} (${preferences.violenceLevel}/10)`);
+      userPreferences.push(`Violence: ${violence} (${preferences.violenceLevel}/10)`);
     }
     
     if (preferences.romanceLevel !== 5) {
       const romance = preferences.romanceLevel > 5 ? 'romantic focus' : 'minimal romance';
-      subjectivePrefs.push(`Romance: ${romance} (${preferences.romanceLevel}/10)`);
+      userPreferences.push(`Romance: ${romance} (${preferences.romanceLevel}/10)`);
     }
     
     if (preferences.complexityLevel !== 5) {
       const complexity = preferences.complexityLevel > 5 ? 'complex/layered' : 'simple/straightforward';
-      subjectivePrefs.push(`Plot: ${complexity} (${preferences.complexityLevel}/10)`);
+      userPreferences.push(`Plot complexity: ${complexity} (${preferences.complexityLevel}/10)`);
     }
 
     // Build concise prompt
-    return `Rank these ${movies.length} movies by match score (0.0-1.0). 
+    // Extract valid tmdbIds to make them explicit
+    const validIds = movies.map(m => m.tmdbId);
+    
+    return `You are a movie recommendation AI. Analyze these ${movies.length} movies and rank the best matches for the user's preferences.
 
-User wants: ${subjectivePrefs.length > 0 ? subjectivePrefs.join('; ') : 'General recommendations'}
+USER PREFERENCES:
+${userPreferences.length > 0 ? userPreferences.join('\n') : 'General recommendations - return most popular movies'}
 
-Movies (already filtered by year, rating, runtime, language):
+VALID MOVIE IDS (ONLY use these):
+${validIds.join(', ')}
+
+MOVIES TO ANALYZE:
 ${JSON.stringify(movieSummaries, null, 2)}
 
-Return JSON only (no markdown):
-[{"tmdbId": 123, "score": 0.95, "reason": "Brief explanation"}]
+INSTRUCTIONS:
+1. Read the user's preferences carefully
+2. For each movie, compare its genres, keywords, and overview against the preferences
+3. Assign a match score from 0.0 to 1.0 based on how well it matches
+4. IMPORTANT: Match based on actual data - if user wants "Animation", the movie MUST have "Animation" in its genres field
+5. Visual effects or CGI in live-action movies do NOT make them animations
+6. Only include movies with score >= 0.6 (good matches)
+7. Return UP TO 10 best matches, sorted by score (highest first)
+8. If no movies score >= 0.6, return an empty array: []
 
-CRITICAL RULES: 
-- Return EXACTLY 10 movies (no more, no less)
-- Only include movies with score >= 0.6 (good matches only)
-- Sort by score descending (best matches first)
-- Each movie must have unique tmdbId from the list above`;
+Return JSON only (no markdown):
+[{"tmdbId": 123, "score": 0.95, "reason": "Brief explanation"}]`;
   }
 
   /**
@@ -253,45 +325,24 @@ CRITICAL RULES:
    */
   async searchMovies(preferences, user = null) {
     console.log('\n' + '='.repeat(80));
-    console.log('🔍 MOVIE SEARCH STARTED');
+    console.log('🔍 MOVIE SEARCH STARTED (TMDB API)');
     console.log('='.repeat(80));
     console.log('📋 Preferences received:');
     console.log(JSON.stringify(preferences, null, 2));
     console.log('='.repeat(80) + '\n');
     
-    // Step 1: Database filtering
-    console.log('📊 Step 1: Filtering movies by basic criteria...');
-    const filteredMovies = await this.filterMoviesByBasicCriteria(preferences);
-    console.log(`✅ Found ${filteredMovies.length} movies matching basic criteria\n`);
+    // Step 1: TMDB filtering (with user context to filter out rated movies early)
+    console.log('📊 Step 1: Filtering movies via TMDB API...');
+    const filteredMovies = await this.filterMoviesByBasicCriteria(preferences, user);
+    console.log(`✅ Found ${filteredMovies.length} unrated movies matching basic criteria\n`);
 
     if (filteredMovies.length === 0) {
-      console.log('❌ No movies found matching basic criteria\n');
+      console.log('❌ No unrated movies found matching basic criteria\n');
       return [];
     }
 
-    // Filter out already rated movies if user provided
-    let moviesToProcess = filteredMovies;
-    if (user) {
-      const ratedMovieIds = new Set([
-        ...user.likedMovies.map(m => m.movieId),
-        ...user.dislikedMovies.map(m => m.movieId)
-      ]);
-      
-      moviesToProcess = filteredMovies.filter(movie => 
-        !ratedMovieIds.has(movie.tmdbId.toString())
-      );
-      
-      const removedCount = filteredMovies.length - moviesToProcess.length;
-      if (removedCount > 0) {
-        console.log(`🚫 Filtered out ${removedCount} already-rated movies`);
-        console.log(`✅ ${moviesToProcess.length} unrated movies remaining\n`);
-      }
-    }
-
-    if (moviesToProcess.length === 0) {
-      console.log('❌ No unrated movies found\n');
-      return [];
-    }
+    // Movies are already filtered for unrated content in Step 1
+    const moviesToProcess = filteredMovies;
 
     console.log('📦 Sample of filtered movies:');
     console.table(
