@@ -418,8 +418,235 @@ async function sendFriendRequestDeclinedNotification(declinerUser, requesterUser
   }
 }
 
+// Email template for movie share
+const generateMovieShareEmail = (movie, senderName, personalMessage, recipientEmail) => {
+  const posterUrl = movie.posterPath 
+    ? `https://image.tmdb.org/t/p/w500${movie.posterPath}` 
+    : 'https://via.placeholder.com/500x750?text=No+Poster';
+  
+  const trailerUrl = movie.videos && movie.videos.length > 0 
+    ? `https://www.youtube.com/watch?v=${movie.videos[0].key}` 
+    : null;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: #000000;
+      margin: 0;
+      padding: 50px 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #181818;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
+    }
+    .header {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .content {
+      padding: 40px;
+      background: #181818;
+      color: #ffffff;
+    }
+    .message {
+      font-size: 18px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+      color: #e0e0e0;
+    }
+    .sender-name {
+      color: #f093fb;
+      font-weight: 600;
+    }
+    .movie-card {
+      background: #222222;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 30px 0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .movie-poster {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .movie-details {
+      padding: 24px;
+    }
+    .movie-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+    }
+    .movie-meta {
+      font-size: 14px;
+      color: #999999;
+      margin-bottom: 16px;
+    }
+    .movie-overview {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #cccccc;
+      margin-bottom: 20px;
+    }
+    .personal-message {
+      background: #2a2a2a;
+      border-left: 4px solid #f093fb;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 24px 0;
+      font-style: italic;
+      color: #e0e0e0;
+    }
+    .cta-button {
+      display: inline-block;
+      background: #f093fb;
+      color: white;
+      padding: 16px 40px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 8px;
+      box-shadow: 0 4px 14px rgba(240, 147, 251, 0.4);
+      transition: all 0.25s ease;
+      font-size: 16px;
+    }
+    .cta-button:hover {
+      background: #f5576c;
+      box-shadow: 0 6px 20px rgba(240, 147, 251, 0.6);
+      transform: translateY(-2px);
+    }
+    .cta-button.secondary {
+      background: #667eea;
+    }
+    .cta-button.secondary:hover {
+      background: #764ba2;
+    }
+    .button-container {
+      text-align: center;
+      margin-top: 24px;
+    }
+    .footer {
+      background: #141414;
+      padding: 30px;
+      text-align: center;
+      color: #808080;
+      font-size: 14px;
+      border-top: 1px solid #333333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎬 Movie Recommendation</h1>
+    </div>
+    
+    <div class="content">
+      <p class="message">
+        <span class="sender-name">${senderName}</span> thinks you'll love this movie!
+      </p>
+      
+      ${personalMessage ? `
+      <div class="personal-message">
+        "${personalMessage}"
+      </div>
+      ` : ''}
+      
+      <div class="movie-card">
+        <img src="${posterUrl}" alt="${movie.title} Poster" class="movie-poster">
+        <div class="movie-details">
+          <h2 class="movie-title">${movie.title}</h2>
+          <p class="movie-meta">
+            ${movie.releaseDate ? new Date(movie.releaseDate).getFullYear() : 'N/A'} 
+            ${movie.runtime ? `• ${movie.runtime} min` : ''} 
+            ${movie.voteAverage ? `• ⭐ ${movie.voteAverage.toFixed(1)}/10` : ''}
+          </p>
+          <p class="movie-overview">
+            ${movie.overview || 'No overview available.'}
+          </p>
+          
+          <div class="button-container">
+            <a href="${FRONTEND_URL}" class="cta-button">View on SceneIt</a>
+            ${trailerUrl ? `<a href="${trailerUrl}" class="cta-button secondary">Watch Trailer</a>` : ''}
+          </div>
+        </div>
+      </div>
+      
+      <p class="message" style="text-align: center; margin-top: 30px;">
+        Join SceneIt to discover more movies and share recommendations with friends!
+      </p>
+    </div>
+    
+    <div class="footer">
+      <p>SceneIt - Discover movies together 🎬</p>
+      <p style="margin-top: 10px; font-size: 12px;">
+        You received this email because ${senderName} shared a movie with you.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+};
+
+// Send movie share email
+async function sendMovieShareEmail(recipientEmail, movie, senderName, personalMessage = '') {
+  try {
+    if (!recipientEmail) {
+      throw new Error('Recipient email is required');
+    }
+
+    if (!movie) {
+      throw new Error('Movie data is required');
+    }
+
+    const emailHTML = generateMovieShareEmail(
+      movie,
+      senderName || 'A SceneIt user',
+      personalMessage,
+      recipientEmail
+    );
+
+    await transporter.sendMail({
+      from: `"SceneIt 🎬" <${process.env.EMAIL_USER}>`,
+      to: recipientEmail,
+      subject: `${senderName || 'Someone'} recommends: ${movie.title}`,
+      html: emailHTML
+    });
+
+    console.log(`✅ Movie share email sent to ${recipientEmail}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending movie share email:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   sendFriendRequestNotification,
   sendFriendRequestAcceptedNotification,
-  sendFriendRequestDeclinedNotification
+  sendFriendRequestDeclinedNotification,
+  sendMovieShareEmail
 };

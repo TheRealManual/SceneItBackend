@@ -1,5 +1,6 @@
 const MovieSearchService = require('../services/movieSearch.service');
 const MovieDatabaseService = require('../services/movieDatabase.service');
+const emailNotificationService = require('../services/emailNotification.service');
 
 const movieController = {
   // Search movies based on user preferences
@@ -139,6 +140,59 @@ const movieController = {
       res.status(500).json({
         success: false,
         error: 'Failed to get random movies',
+        message: error.message
+      });
+    }
+  },
+
+  // Share movie via email
+  async shareMovie(req, res) {
+    try {
+      const { id } = req.params;
+      const { recipientEmail, message } = req.body;
+      
+      if (!recipientEmail) {
+        return res.status(400).json({
+          success: false,
+          error: 'Recipient email is required'
+        });
+      }
+      
+      console.log(`📧 Sharing movie ${id} with ${recipientEmail}`);
+      console.log('Sender:', req.user?.displayName || 'Unknown');
+      
+      // Get movie details
+      const movieDb = new MovieDatabaseService(process.env.TMDB_ACCESS_TOKEN);
+      const movie = await movieDb.getMovieById(parseInt(id));
+      
+      if (!movie) {
+        return res.status(404).json({
+          success: false,
+          error: 'Movie not found'
+        });
+      }
+      
+      // Send share email
+      await emailNotificationService.sendMovieShareEmail(
+        recipientEmail,
+        movie,
+        req.user.displayName,
+        message || ''
+      );
+      
+      console.log(`✅ Movie shared successfully with ${recipientEmail}`);
+      
+      res.json({
+        success: true,
+        message: 'Movie shared successfully'
+      });
+      
+    } catch (error) {
+      console.error('Share movie error:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to share movie',
         message: error.message
       });
     }

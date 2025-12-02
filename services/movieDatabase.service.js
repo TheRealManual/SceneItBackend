@@ -1,5 +1,6 @@
 const axios = require('axios');
 const NodeCache = require('node-cache');
+const justwatchService = require('./justwatch.service');
 
 // Cache configuration
 // - Genre list: 24 hours (rarely changes)
@@ -47,7 +48,7 @@ class MovieDatabaseService {
       }
 
       const params = {
-        append_to_response: 'credits,keywords,release_dates'
+        append_to_response: 'credits,keywords,release_dates,videos,watch/providers'
       };
       
       // Only add language parameter if not retrying
@@ -86,8 +87,62 @@ class MovieDatabaseService {
           profilePath: c.profile_path
         })) || [],
         director: movieData.credits?.crew?.find(c => c.job === 'Director')?.name || '',
-        keywords: movieData.keywords?.keywords?.map(k => k.name) || []
+        keywords: movieData.keywords?.keywords?.map(k => k.name) || [],
+        // Videos (trailers, teasers, etc.)
+        videos: movieData.videos?.results?.map(v => ({
+          key: v.key,
+          name: v.name,
+          site: v.site,
+          type: v.type,
+          official: v.official
+        })) || [],
+        // Watch providers (streaming services by region)
+        watchProviders: {
+          US: {
+            link: movieData['watch/providers']?.results?.US?.link || null,
+            flatrate: movieData['watch/providers']?.results?.US?.flatrate?.map(p => ({
+              providerId: p.provider_id,
+              providerName: p.provider_name,
+              logoPath: p.logo_path
+            })) || [],
+            rent: movieData['watch/providers']?.results?.US?.rent?.map(p => ({
+              providerId: p.provider_id,
+              providerName: p.provider_name,
+              logoPath: p.logo_path
+            })) || [],
+            buy: movieData['watch/providers']?.results?.US?.buy?.map(p => ({
+              providerId: p.provider_id,
+              providerName: p.provider_name,
+              logoPath: p.logo_path
+            })) || []
+          }
+        }
       };
+
+      // Fetch JustWatch streaming links in parallel (non-blocking)
+      try {
+        const releaseYear = movieData.release_date ? new Date(movieData.release_date).getFullYear() : null;
+        const jwData = await justwatchService.getStreamingLinks(movieData.title, releaseYear);
+        
+        if (jwData && jwData.streamingLinks) {
+          // Add JustWatch URLs to providers
+          ['flatrate', 'rent', 'buy'].forEach(type => {
+            if (movie.watchProviders.US[type]) {
+              movie.watchProviders.US[type] = movie.watchProviders.US[type].map(provider => {
+                // Try to find matching JustWatch link by provider ID
+                const jwLink = jwData.streamingLinks[provider.providerId];
+                return {
+                  ...provider,
+                  directUrl: jwLink?.url || null
+                };
+              });
+            }
+          });
+        }
+      } catch (jwError) {
+        // JustWatch fetch failed - continue without direct links
+        console.log(`   ⚠️  JustWatch fetch failed for ${movieData.title}, using TMDB links only`);
+      }
 
       // Cache the result
       cache.set(cacheKey, movie);

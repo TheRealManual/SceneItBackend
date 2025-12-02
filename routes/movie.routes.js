@@ -25,4 +25,7 @@ router.get('/random', optionalAuth, movieController.getRandomMovies);
 // Get movie by ID
 router.get('/:id', movieController.getMovieById);
 
+// Share movie via email (authenticated users only)
+router.post('/:id/share', isAuthenticated, movieController.shareMovie);
+
 module.exports = router;
